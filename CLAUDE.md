@@ -4,6 +4,11 @@ Homebridge platform plugin (`@mdjhnson/homebridge-yoto`) that exposes Yoto playe
 
 Code conventions (JSDoc types, `@import`, exhaustive switches, no `any`) are in @AGENTS.md. Feature and service status is tracked in `PLAN.md`.
 
+## GitHub: work in the fork only
+
+- All development happens in the fork `mdjhnson/homebridge-yoto` (`origin`). Don't check, open PRs on, comment on or push to the upstream `bcomnes/homebridge-yoto` (`upstream` remote).
+- `gh` may resolve to upstream by default. Pass `--repo mdjhnson/homebridge-yoto` (or use `gh api repos/mdjhnson/homebridge-yoto/...`) on every `gh` command.
+
 ## Commands
 
 ```sh
