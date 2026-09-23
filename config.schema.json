@@ -61,13 +61,13 @@
             "title": "Playback Controls",
             "type": "boolean",
             "default": false,
-            "description": "Expose bridged playback switch and volume dimmer controls."
+            "description": "Add a play/pause switch and a volume dimmer to each player. Simplest option, with no extra pairing."
           },
           "smartSpeaker": {
-            "title": "External Smart Speaker",
+            "title": "External Smart Speaker (Legacy)",
             "type": "boolean",
             "default": false,
-            "description": "Publish an external Smart Speaker accessory for use in Home app scenes and automations (pause, resume, set volume). The Home app shows \"Controls not available\" for it; for tap-to-control use Playback Controls or the TV Playback Accessory. Requires pairing and its own network port."
+            "description": "Legacy option kept for existing setups. Publishes a separate Smart Speaker accessory that only works in Home app scenes and automations. Requires pairing and its own network port."
           },
           "television": {
             "title": "TV Playback Accessory",
@@ -171,7 +171,7 @@
       "items": [
         {
           "type": "help",
-          "helpvalue": "<p><strong>Authentication Instructions:</strong></p><ol><li>Click the <strong>\"Start Authentication\"</strong> button in the custom UI above</li><li>Follow the on-screen instructions to authorize with your Yoto account</li><li>Tokens will be saved automatically when authorization completes</li><li>Homebridge will restart and connect to your devices</li></ol><p><strong>Advanced:</strong> The default OAuth Client ID works for all users. The token fields below are automatically managed by the plugin and should not be edited manually.</p>"
+          "helpvalue": "Sign in and out from the Yoto panel above. The default OAuth Client ID works for all users. The token fields below are managed by the plugin and should not be edited by hand."
         },
         "clientId",
         "accessToken",
@@ -188,10 +188,9 @@
         },
         {
           "type": "help",
-          "helpvalue": "<p><strong>Playback Controls:</strong> Enable a bridged switch + dimmer for play/pause and volume. <strong>External Smart Speaker:</strong> a separate accessory for scenes and automations only (the Home app shows \"Controls not available\"). <strong>TV Playback Accessory:</strong> a separate accessory controlled with the iPhone remote, with inputs for card controls and shortcuts. External accessories need pairing and each uses its own network port.</p>"
+          "helpvalue": "<p>The older <strong>External Smart Speaker</strong> option has moved to the <em>Advanced</em> section below.</p>"
         },
         "services.playbackControls",
-        "services.smartSpeaker",
         "services.television",
         "services.volumeLimits",
         "services.battery",
@@ -225,7 +224,12 @@
       "expandable": true,
       "expanded": false,
       "items": [
-        "httpPollIntervalMs"
+        "httpPollIntervalMs",
+        {
+          "type": "help",
+          "helpvalue": "<p><strong>Legacy: External Smart Speaker.</strong> Older playback option kept for existing setups. It only works in scenes and automations. The Home app shows \"Controls not available\" for it and can't show what's playing, because iOS only offers those for AirPlay speakers. For more features, turn on the <strong>TV Playback Accessory</strong> under <em>Accessory Services</em> instead. It supports the iPhone remote, volume buttons, and inputs for card controls and shortcuts. If you switch, remove the old Smart Speaker from the Home app by hand.</p>"
+        },
+        "services.smartSpeaker"
       ]
     }
   ]

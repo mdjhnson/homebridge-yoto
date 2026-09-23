@@ -4,6 +4,11 @@ Homebridge platform plugin (`@mdjhnson/homebridge-yoto`) that exposes Yoto playe
 
 Code conventions (JSDoc types, `@import`, exhaustive switches, no `any`) are in @AGENTS.md. Feature and service status is tracked in `PLAN.md`.
 
+## GitHub: work in the fork only
+
+- All development happens in the fork `mdjhnson/homebridge-yoto` (`origin`). Don't check, open PRs on, comment on or push to the upstream `bcomnes/homebridge-yoto` (`upstream` remote).
+- `gh` may resolve to upstream by default. Pass `--repo mdjhnson/homebridge-yoto` (or use `gh api repos/mdjhnson/homebridge-yoto/...`) on every `gh` command.
+
 ## Commands
 
 ```sh
@@ -27,7 +32,7 @@ node --test lib/foo.test.js
   - `getCardTitle()` is a cached card-title lookup.
 - **One handler class per accessory type:**
   - `lib/accessory.js`: the bridged player, with most services.
-  - `lib/speaker-accessory.js`: the external SmartSpeaker.
+  - `lib/speaker-accessory.js`: the external SmartSpeaker. It's a legacy option under **Advanced** in settings, because the Home app can't control non-AirPlay speakers; point users to the TV accessory.
   - `lib/television-accessory.js`: the external TV. Its inputs are "now playing", then card controls, then shortcuts.
   - `lib/card-control-accessory.js`: "Play on All Yotos".
 - **Config readers:**

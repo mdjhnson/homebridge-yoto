@@ -39,10 +39,10 @@ Requires Node.js 22+ and Homebridge 1.8+ or 2.x.
 
 1. Open the plugin's **Settings** in the Homebridge UI and click **Sign in with Yoto**. Yoto's sign-in page opens in a new tab.
 2. Sign in and approve access.
-3. Your browser then shows *"This site can't be reached"* at `127.0.0.1`. That's expected. Copy the full address from the address bar, paste it into the plugin settings, and click **Finish Sign-in**.
+3. Your browser then shows *"This site can't be reached"* at `127.0.0.1`. That's expected. Copy the full address from the address bar, paste it into the **Address from your browser** box on the sign-in screen, and click **Finish Sign-in**.
 4. Restart Homebridge.
 
-Using your own Yoto developer app? Make it a **Public Client**, add `http://127.0.0.1:8787/callback` as an allowed callback URL, enable the `family:devices:*`, `family:library:view`, `user:content:view` and `offline_access` scopes, and enter its client ID under **Advanced Settings** before signing in.
+Using your own Yoto developer app? Make it a **Public Client**, add `http://127.0.0.1:8787/callback` as an allowed callback URL, enable the `family:devices:*`, `family:library:view`, `user:content:view` and `offline_access` scopes, and enter its client ID in the **Advanced Settings** panel on the sign-in screen before signing in. (That panel is only shown while you're signed out, and is separate from the **Advanced** section of the plugin settings.)
 
 The plugin asks for access to view, configure and control your players, plus read-only access to your card library (used to name shortcut switches). If you signed in with an older version, sign in again so the new permissions apply.
 
@@ -50,14 +50,13 @@ The plugin refreshes its tokens on its own. If the login ever expires or is revo
 
 ## Settings
 
-All options live under **Accessory Services** in the plugin settings.
+Most options live under **Accessory Services** in the plugin settings. The settings form, including **Advanced**, appears once you've signed in.
 
 **Playback**
-- **Playback Controls**: Adds a play/pause switch and a volume dimmer to each player's bridged accessory.
-- **External Smart Speaker**: Publishes a separate Smart Speaker accessory for Home app scenes and automations (pause, resume, set volume). The Home app shows *"Controls not available"* when you open it, because iOS only offers live controls for AirPlay speakers. It does not make the Yoto an AirPlay target.
-- **TV Playback Accessory**: Publishes a separate TV-style accessory. Its inputs play your card controls and shortcuts, and you control it with the iOS remote.
+- **Playback Controls**: Adds a play/pause switch and a volume dimmer to each player's bridged accessory. This is the simplest option and needs no extra pairing.
+- **TV Playback Accessory**: Publishes a separate TV-style accessory. You control it with the iOS remote (play/pause, volume buttons), and its inputs play your card controls and shortcuts.
 
-External accessories must be added by hand in the Home app (**Add Accessory → More options**) using the setup code in the Homebridge log. Each one listens on its own port (logged as `... is running on port N`), so open those ports if Homebridge runs behind a firewall, or set a fixed port range under Homebridge **Settings → Network**.
+The TV accessory, and the legacy Smart Speaker below, are external accessories. External accessories must be added by hand in the Home app (**Add Accessory → More options**) using the setup code in the Homebridge log. Each one listens on its own port (logged as `... is running on port N`), so open those ports if Homebridge runs behind a firewall, or set a fixed port range under Homebridge **Settings → Network**.
 
 **Card Controls** (`services.cardControls`)
 - A switch on each player that plays the card ID you configure.
@@ -70,8 +69,9 @@ External accessories must be added by hand in the Home app (**Add Accessory → 
 **Service toggles**
 - **Battery**, **Temperature Sensor** (v3), **Nightlight** (v3), **Card Slot**, **Day Mode**, **Sleep Timer**, **Bluetooth**, **Volume Limits**.
 
-**Advanced**
+**Advanced** (collapsed section at the bottom of the plugin settings)
 - **HTTP Poll Interval**: How often to poll the Yoto API as a fallback to MQTT. Defaults to 60 seconds; the minimum is 10 seconds.
+- **External Smart Speaker (Legacy)**: Kept for existing setups. It publishes a separate Smart Speaker accessory that only works in Home app scenes and automations. When you open it, the Home app shows *"Controls not available"* and can't show what's playing, because iOS only offers live controls for AirPlay speakers. It does not make the Yoto an AirPlay target. For more features, use the **TV Playback Accessory** instead. If you switch, remove the old Smart Speaker from the Home app by hand (Homebridge can't unpublish external accessories).
 
 ## HomeKit services
 
@@ -79,7 +79,7 @@ External accessories must be added by hand in the Home app (**Add Accessory → 
 - **Playback**: Switch. On resumes, Off pauses.
 - **Volume**: Lightbulb. On unmutes, Off mutes, and Brightness maps 0–100% to the player's volume steps.
 
-**Smart Speaker (external)**
+**Smart Speaker (external, legacy)**
 - Current/Target Media State, Volume, Mute, and online status. Stop pauses, so playback can be resumed.
 
 **TV Playback (external)**
