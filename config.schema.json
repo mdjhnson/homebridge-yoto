@@ -4,7 +4,7 @@
   "singular": true,
   "customUi": true,
   "headerDisplay": "**Homebridge Yoto Plugin** - Control your Yoto players through HomeKit",
-  "footerDisplay": "For help and documentation, visit the [GitHub repository](https://github.com/bcomnes/homebridge-yoto)",
+  "footerDisplay": "For help and documentation, visit the [GitHub repository](https://github.com/mdjhnson/homebridge-yoto)",
   "schema": {
     "type": "object",
     "properties": {

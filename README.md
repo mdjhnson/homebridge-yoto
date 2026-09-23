@@ -8,80 +8,119 @@
 
 <span align="center">
 
-# homebridge-yoto
+# @mdjhnson/homebridge-yoto
 
 </span>
 
 <span align="center">
 
-[![latest version](https://img.shields.io/npm/v/homebridge-yoto.svg)](https://www.npmjs.com/package/homebridge-yoto)
-[![Actions Status](https://github.com/bcomnes/homebridge-yoto/workflows/tests/badge.svg)](https://github.com/bcomnes/homebridge-yoto/actions)
-[![downloads](https://img.shields.io/npm/dm/homebridge-yoto.svg)](https://npmtrends.com/homebridge-yoto)
+[![latest version](https://img.shields.io/npm/v/@mdjhnson/homebridge-yoto.svg)](https://www.npmjs.com/package/@mdjhnson/homebridge-yoto)
+[![Actions Status](https://github.com/mdjhnson/homebridge-yoto/workflows/tests/badge.svg)](https://github.com/mdjhnson/homebridge-yoto/actions)
 ![Types in JS](https://img.shields.io/badge/types_in_js-yes-brightgreen)
 [![neostandard javascript style](https://img.shields.io/badge/code_style-neostandard-7fffff?style=flat&labelColor=ff80ff)](https://github.com/neostandard/neostandard)
-[![Socket Badge](https://socket.dev/api/badge/npm/package/homebridge-yoto)](https://socket.dev/npm/package/homebridge-yoto)
 
 </span>
 
-THIS PLUGIN IS A WIP. DO NOT USE YET.
+Homebridge plugin that exposes Yoto players to HomeKit: playback and volume, card and shortcut buttons, battery, temperature, nightlights, and more. Updates arrive in real time over MQTT, with HTTP polling as a fallback.
 
-Homebridge plugin that exposes Yoto players to HomeKit with optional playback controls, device status, and nightlight settings.
+This is a maintained fork of [bcomnes/homebridge-yoto](https://github.com/bcomnes/homebridge-yoto).
+
+## Install
+
+Search for `@mdjhnson/homebridge-yoto` in the Homebridge UI **Plugins** tab, or run:
+
+```sh
+npm install -g @mdjhnson/homebridge-yoto
+```
+
+Requires Node.js 22+ and Homebridge 1.8+ or 2.x.
+
+## Sign in
+
+1. Open the plugin's **Settings** in the Homebridge UI.
+2. Click **Start Authentication** and follow the link to approve access with your Yoto account.
+3. Tokens are saved automatically. Restart Homebridge.
+
+The plugin refreshes its tokens on its own. If the login ever expires or is revoked, the Homebridge log will say so. Sign in again from the plugin settings.
 
 ## Settings
 
-**Playback Controls** (`services.playbackAccessory`)
-- **Bridged (Switch + Dimmer)**: Adds Playback and Volume services on the main accessory.
-- **External Smart Speaker**: Publishes a separate Smart Speaker accessory for playback and volume. Requires pairing the extra accessory in the Home app.
-- **None**: Disables playback and volume services entirely.
+All options live under **Accessory Services** in the plugin settings.
+
+**Playback**
+- **Playback Controls**: Adds a play/pause switch and a volume dimmer to each player's bridged accessory.
+- **External Smart Speaker**: Publishes a separate Smart Speaker accessory for playback and volume.
+- **TV Playback Accessory**: Publishes a separate TV-style accessory. Its inputs play your card controls and shortcuts, and you control it with the iOS remote.
+
+External accessories must be added by hand in the Home app (**Add Accessory → More options**) using the setup code in the Homebridge log.
 
 **Card Controls** (`services.cardControls`)
-- Adds a per-device switch that plays the configured card ID.
-- Optional "Play on All Yotos" accessory per card control.
+- A switch on each player that plays the card ID you configure.
+- Optional **Play on All Yotos**: a separate accessory that plays the card on every online player.
+
+**Shortcuts** (`services.shortcuts`)
+- A switch for each shortcut configured on the player in the Yoto app. Turning it on plays that shortcut's card, chapter and track.
+- Switches are named after the card and update when you change the shortcuts in the Yoto app.
 
 **Service toggles**
-- **Temperature Sensor**: Adds a temperature sensor when supported by the device.
-- **Nightlight**: Adds day/night nightlight controls and status sensors.
-- **Card Slot**: Adds a card insertion sensor.
-- **Day Mode**: Adds a day/night mode sensor.
-- **Sleep Timer**: Adds a sleep timer switch.
-- **Bluetooth**: Adds a Bluetooth toggle switch.
-- **Volume Limits**: Adds day/night max volume controls.
+- **Battery**, **Temperature Sensor** (v3), **Nightlight** (v3), **Card Slot**, **Day Mode**, **Sleep Timer**, **Bluetooth**, **Volume Limits**.
 
-## HomeKit Services
+**Advanced**
+- **HTTP Poll Interval**: How often to poll the Yoto API as a fallback to MQTT. Defaults to 60 seconds; the minimum is 10 seconds.
+
+## HomeKit services
 
 **Playback (bridged)**
-- **Playback**: Switch; On resumes, Off pauses.
-- **Volume**: Lightbulb; On unmutes, Off mutes, Brightness maps 0-100% to device volume steps.
+- **Playback**: Switch. On resumes, Off pauses.
+- **Volume**: Lightbulb. On unmutes, Off mutes, and Brightness maps 0–100% to the player's volume steps.
 
 **Smart Speaker (external)**
-- **Smart Speaker**: Current/Target Media State, Volume, Mute, and StatusActive (online state).
+- Current/Target Media State, Volume, Mute, and online status. Stop pauses, so playback can be resumed.
 
-**Card Controls**
-- **Card Control**: Switch on each device that plays the configured card ID.
-- **Card Control (All Yotos)**: Optional switch accessory that plays the card on every Yoto.
+**TV Playback (external)**
+- Active is on while the player is playing. Turning it off pauses.
+- Inputs: **Now Playing**, then one per card control and one per shortcut. Choosing an input plays its card.
+- Remote: Play/Pause and Select toggle playback. Volume buttons step the volume.
+
+**Card Controls and Shortcuts**
+- Momentary switches that start their card and then turn back off.
 
 **Device status**
-- **Online Status**: Contact sensor; Contact Not Detected = online.
+- **Online Status**: Contact sensor. Contact Not Detected means online.
 - **Battery**: Battery level, charging state, and low battery.
-- **Temperature**: Temperature sensor with fault status when offline/unavailable.
+- **Temperature**: Temperature sensor (v3).
 
-**Nightlight**
+**Nightlight** (v3)
 - **Day Nightlight / Night Nightlight**: Lightbulbs with On/Off, Brightness, Hue, and Saturation.
-- **Nightlight Active / Day Nightlight Active / Night Nightlight Active**: Contact sensors for live nightlight state.
+- **Nightlight Active / Day Nightlight Active / Night Nightlight Active**: Contact sensors for the live nightlight state.
 
 **Other controls**
 - **Card Slot**: Contact sensor for card insertion.
-- **Day Mode**: Contact sensor; Contact Not Detected = day mode.
-- **Sleep Timer**: Switch to enable/disable sleep timer.
-- **Bluetooth**: Switch to toggle Bluetooth.
-- **Day/Night Max Volume**: Lightbulb brightness sets max volume limits.
+- **Day Mode**: Contact sensor. Contact Not Detected means day mode.
+- **Sleep Timer**: Switch that turns the sleep timer on or off.
+- **Bluetooth**: Switch that toggles Bluetooth.
+- **Day/Night Max Volume**: Lightbulbs whose brightness sets the max volume limits.
+
+## Notes
+
+- **Switching from `homebridge-yoto`:** uninstall the original plugin first. Both register the `Yoto` platform and would conflict. Your existing `Yoto` config block keeps working, but bridged accessories are re-created, so you'll need to re-add them to rooms and automations.
+- **Removed external accessories:** if you turn off the Smart Speaker or TV accessory, or a player leaves your account, remove the old accessory from the Home app by hand. Homebridge can't unpublish external accessories.
+
+## Development
+
+```sh
+npm install
+npm test   # eslint + tsc + node:test with coverage
+```
+
+Releases are cut with the **npm bump** GitHub Action (Actions → npm bump → Run workflow). It needs an `NPM_TOKEN` repository secret.
 
 ## License
 
-MIT © [Bret Comnes](https://bret.io)
+MIT © [Bret Comnes](https://bret.io) and mdjhnson
 
 ## Acknowledgments
 
-- Thanks to [Yoto](https://yoto.io) for their new API!
-- Built with [Homebridge](https://homebridge.io)
-s
+- [Bret Comnes](https://github.com/bcomnes) wrote the original plugin and [yoto-nodejs-client](https://github.com/bcomnes/yoto-nodejs-client).
+- Thanks to [Yoto](https://yoto.io) for their API.
+- Built with [Homebridge](https://homebridge.io).
