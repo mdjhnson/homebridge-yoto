@@ -209,6 +209,7 @@
         {
           "key": "services.cardControls",
           "type": "array",
+          "startEmpty": true,
           "buttonText": "Add Card Control",
           "items": [
             "services.cardControls[].label",
