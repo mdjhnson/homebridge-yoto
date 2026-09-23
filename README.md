@@ -110,11 +110,11 @@ The TV accessory, and the legacy Smart Speaker below, are external accessories. 
 
 - **Switching from `homebridge-yoto`:** uninstall the original plugin first. Both register the `Yoto` platform and would conflict. Your existing `Yoto` config block keeps working, but bridged accessories are re-created, so you'll need to re-add them to rooms and automations.
 - **Removed external accessories:** if you turn off the Smart Speaker or TV accessory, or a player leaves your account, remove the old accessory from the Home app by hand. Homebridge can't unpublish external accessories.
-- **Yoto unreachable at startup:** if the network or Yoto's API is down when Homebridge starts, the plugin keeps retrying, waiting longer each time (up to 10 minutes between tries). You don't need to restart Homebridge.
+- **Yoto unreachable at startup:** if the network or Yoto's API is down when Homebridge starts, the plugin keeps retrying, waiting longer each time (up to 10 minutes between tries). You don't need to restart Homebridge. If Yoto rejects the saved login, the log asks you to sign in again instead of retrying.
 
 ## Privacy
 
-The plugin only connects to Yoto's API and MQTT service, using your own sign-in. It has no analytics or tracking. The only file it writes is Homebridge's `config.json`, to save refreshed sign-in tokens.
+The plugin only connects to Yoto's API and MQTT service, using your own sign-in. It has no analytics or tracking. The only file it changes is Homebridge's `config.json`, to save refreshed sign-in tokens. It writes a temporary copy next to `config.json` first and renames it into place, so an interrupted save can't corrupt the file.
 
 ## Development
 
