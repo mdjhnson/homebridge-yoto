@@ -50,7 +50,7 @@ The plugin refreshes its tokens on its own. If the login ever expires or is revo
 
 ## Settings
 
-Most options live under **Accessory Services** in the plugin settings.
+Most options live under **Accessory Services** in the plugin settings. The settings form, including **Advanced**, appears once you've signed in.
 
 **Playback**
 - **Playback Controls**: Adds a play/pause switch and a volume dimmer to each player's bridged accessory. This is the simplest option and needs no extra pairing.
@@ -71,7 +71,7 @@ The TV accessory, and the legacy Smart Speaker below, are external accessories. 
 
 **Advanced** (collapsed section at the bottom of the plugin settings)
 - **HTTP Poll Interval**: How often to poll the Yoto API as a fallback to MQTT. Defaults to 60 seconds; the minimum is 10 seconds.
-- **External Smart Speaker (Legacy)**: Kept for existing setups. It publishes a separate Smart Speaker accessory that only works in Home app scenes and automations. When you open it, the Home app shows *"Controls not available"* and can't show what's playing, because iOS only offers live controls for AirPlay speakers. It does not make the Yoto an AirPlay target. For more features, use the **TV Playback Accessory** instead.
+- **External Smart Speaker (Legacy)**: Kept for existing setups. It publishes a separate Smart Speaker accessory that only works in Home app scenes and automations. When you open it, the Home app shows *"Controls not available"* and can't show what's playing, because iOS only offers live controls for AirPlay speakers. It does not make the Yoto an AirPlay target. For more features, use the **TV Playback Accessory** instead. If you switch, remove the old Smart Speaker from the Home app by hand (Homebridge can't unpublish external accessories).
 
 ## HomeKit services
 
