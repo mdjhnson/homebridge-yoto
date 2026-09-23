@@ -35,7 +35,7 @@ jobs:
       with:
         node-version: '24' # ships npm 11, required for trusted publishing
         registry-url: 'https://registry.npmjs.org'
-    - run: npm i
+    - run: npm ci
     - run: npm test
     - name: Configure git
       run: |
