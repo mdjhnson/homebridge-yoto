@@ -67,13 +67,13 @@
             "title": "External Smart Speaker",
             "type": "boolean",
             "default": false,
-            "description": "Publish an external Smart Speaker accessory for playback and volume controls. Requires additional pairing steps and appears as a separate accessory."
+            "description": "Publish an external Smart Speaker accessory for use in Home app scenes and automations (pause, resume, set volume). The Home app shows \"Controls not available\" for it; for tap-to-control use Playback Controls or the TV Playback Accessory. Requires pairing and its own network port."
           },
           "television": {
             "title": "TV Playback Accessory",
             "type": "boolean",
             "default": false,
-            "description": "Publish an external playback accessory using the TV service with input and speaker controls. Requires additional pairing steps and appears as a separate accessory."
+            "description": "Publish an external TV-style accessory: play/pause and volume from the iPhone remote, and inputs that play your card controls and shortcuts. Requires pairing and its own network port."
           },
           "battery": {
             "title": "Battery",
@@ -188,7 +188,7 @@
         },
         {
           "type": "help",
-          "helpvalue": "<p><strong>Playback Controls:</strong> Enable a bridged switch + dimmer for play/pause and volume. <strong>External Smart Speaker:</strong> publishes a separate accessory and requires additional pairing steps in the Home app. <strong>TV Playback Accessory:</strong> publishes an external playback accessory with input and speaker controls.</p>"
+          "helpvalue": "<p><strong>Playback Controls:</strong> Enable a bridged switch + dimmer for play/pause and volume. <strong>External Smart Speaker:</strong> a separate accessory for scenes and automations only (the Home app shows \"Controls not available\"). <strong>TV Playback Accessory:</strong> a separate accessory controlled with the iPhone remote, with inputs for card controls and shortcuts. External accessories need pairing and each uses its own network port.</p>"
         },
         "services.playbackControls",
         "services.smartSpeaker",
@@ -209,6 +209,7 @@
         {
           "key": "services.cardControls",
           "type": "array",
+          "startEmpty": true,
           "buttonText": "Add Card Control",
           "items": [
             "services.cardControls[].label",

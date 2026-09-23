@@ -54,10 +54,10 @@ All options live under **Accessory Services** in the plugin settings.
 
 **Playback**
 - **Playback Controls**: Adds a play/pause switch and a volume dimmer to each player's bridged accessory.
-- **External Smart Speaker**: Publishes a separate Smart Speaker accessory for playback and volume.
+- **External Smart Speaker**: Publishes a separate Smart Speaker accessory for Home app scenes and automations (pause, resume, set volume). The Home app shows *"Controls not available"* when you open it, because iOS only offers live controls for AirPlay speakers. It does not make the Yoto an AirPlay target.
 - **TV Playback Accessory**: Publishes a separate TV-style accessory. Its inputs play your card controls and shortcuts, and you control it with the iOS remote.
 
-External accessories must be added by hand in the Home app (**Add Accessory → More options**) using the setup code in the Homebridge log.
+External accessories must be added by hand in the Home app (**Add Accessory → More options**) using the setup code in the Homebridge log. Each one listens on its own port (logged as `... is running on port N`), so open those ports if Homebridge runs behind a firewall, or set a fixed port range under Homebridge **Settings → Network**.
 
 **Card Controls** (`services.cardControls`)
 - A switch on each player that plays the card ID you configure.
