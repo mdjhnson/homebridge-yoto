@@ -10,6 +10,10 @@
   "bugs": {
     "url": "https://github.com/mdjhnson/homebridge-yoto/issues"
   },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/mdjhnson"
+  },
   "dependencies": {
     "@homebridge/plugin-ui-utils": "^2.2.6",
     "color-convert": "3.1.3",
