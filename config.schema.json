@@ -64,10 +64,10 @@
             "description": "Expose bridged playback switch and volume dimmer controls."
           },
           "smartSpeaker": {
-            "title": "External Smart Speaker",
+            "title": "External Smart Speaker (Legacy)",
             "type": "boolean",
             "default": false,
-            "description": "Publish an external Smart Speaker accessory for use in Home app scenes and automations (pause, resume, set volume). The Home app shows \"Controls not available\" for it; for tap-to-control use Playback Controls or the TV Playback Accessory. Requires pairing and its own network port."
+            "description": "Legacy option kept for existing setups. Publishes a separate Smart Speaker accessory that can only be used in Home app scenes and automations: the Home app shows \"Controls not available\" and always reports it as stopped. Requires pairing and its own network port."
           },
           "television": {
             "title": "TV Playback Accessory",
@@ -171,7 +171,7 @@
       "items": [
         {
           "type": "help",
-          "helpvalue": "<p><strong>Authentication Instructions:</strong></p><ol><li>Click the <strong>\"Start Authentication\"</strong> button in the custom UI above</li><li>Follow the on-screen instructions to authorize with your Yoto account</li><li>Tokens will be saved automatically when authorization completes</li><li>Homebridge will restart and connect to your devices</li></ol><p><strong>Advanced:</strong> The default OAuth Client ID works for all users. The token fields below are automatically managed by the plugin and should not be edited manually.</p>"
+          "helpvalue": "<p><strong>Signing in:</strong></p><ol><li>Click <strong>Sign in with Yoto</strong> in the panel above. The Yoto sign-in page opens in a new tab.</li><li>Approve access. Your browser then shows \"This site can't be reached\" at 127.0.0.1. That's expected.</li><li>Copy the full address from the address bar, paste it into the plugin settings and click <strong>Finish Sign-in</strong>.</li><li>Restart Homebridge (or the child bridge) to connect to your players.</li></ol><p><strong>Advanced:</strong> The default OAuth Client ID works for all users. The token fields below are managed by the plugin and should not be edited by hand.</p>"
         },
         "clientId",
         "accessToken",
@@ -188,10 +188,9 @@
         },
         {
           "type": "help",
-          "helpvalue": "<p><strong>Playback Controls:</strong> Enable a bridged switch + dimmer for play/pause and volume. <strong>External Smart Speaker:</strong> a separate accessory for scenes and automations only (the Home app shows \"Controls not available\"). <strong>TV Playback Accessory:</strong> a separate accessory controlled with the iPhone remote, with inputs for card controls and shortcuts. External accessories need pairing and each uses its own network port.</p>"
+          "helpvalue": "<p><strong>Playback Controls:</strong> Adds a play/pause switch and a volume dimmer to each player. Simplest option, with no extra pairing. <strong>TV Playback Accessory:</strong> A separate accessory with play/pause and volume from the iPhone remote, and inputs that play your card controls and shortcuts. Needs pairing and its own network port per player.</p>"
         },
         "services.playbackControls",
-        "services.smartSpeaker",
         "services.television",
         "services.volumeLimits",
         "services.battery",
@@ -225,7 +224,12 @@
       "expandable": true,
       "expanded": false,
       "items": [
-        "httpPollIntervalMs"
+        "httpPollIntervalMs",
+        {
+          "type": "help",
+          "helpvalue": "<p><strong>Legacy: External Smart Speaker.</strong> Older playback option kept for existing setups. It only works in scenes and automations. The Home app shows \"Controls not available\" for it and can't show what's playing, because iOS only offers those for AirPlay speakers. For more features, turn on the <strong>TV Playback Accessory</strong> under <em>Accessory Services</em> instead. It supports the iPhone remote, volume buttons, and inputs for card controls and shortcuts.</p>"
+        },
+        "services.smartSpeaker"
       ]
     }
   ]

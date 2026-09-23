@@ -27,7 +27,7 @@ node --test lib/foo.test.js
   - `getCardTitle()` is a cached card-title lookup.
 - **One handler class per accessory type:**
   - `lib/accessory.js`: the bridged player, with most services.
-  - `lib/speaker-accessory.js`: the external SmartSpeaker.
+  - `lib/speaker-accessory.js`: the external SmartSpeaker. It's a legacy option under **Advanced** in settings, because the Home app can't control non-AirPlay speakers; point users to the TV accessory.
   - `lib/television-accessory.js`: the external TV. Its inputs are "now playing", then card controls, then shortcuts.
   - `lib/card-control-accessory.js`: "Play on All Yotos".
 - **Config readers:**
