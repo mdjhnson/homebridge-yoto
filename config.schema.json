@@ -45,6 +45,14 @@
           "hidden": true
         }
       },
+      "httpPollIntervalMs": {
+        "title": "HTTP Poll Interval (ms)",
+        "type": "integer",
+        "default": 60000,
+        "minimum": 10000,
+        "required": false,
+        "description": "How often to poll the Yoto API for device status and config as a fallback to MQTT updates. Defaults to 60000 (1 minute)."
+      },
       "services": {
         "title": "Accessory Services",
         "type": "object",
@@ -201,6 +209,15 @@
             "services.cardControls[].playOnAll"
           ]
         }
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Advanced",
+      "expandable": true,
+      "expanded": false,
+      "items": [
+        "httpPollIntervalMs"
       ]
     }
   ]

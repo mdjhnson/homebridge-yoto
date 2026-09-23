@@ -15,6 +15,7 @@ const homebridge = window.homebridge
 
 /**
  * @typedef {Object} YotoConfig
+ * @property {string} [platform] - Platform alias (always "Yoto")
  * @property {string} [clientId] - OAuth client ID
  * @property {string} [refreshToken] - Stored refresh token
  * @property {string} [accessToken] - Stored access token
@@ -22,8 +23,9 @@ const homebridge = window.homebridge
  */
 
 // State variables
-/** @type {ReturnType<typeof setInterval> | null} */
+/** @type {ReturnType<typeof setTimeout> | null} */
 let pollingInterval = null
+let pollingActive = false
 /** @type {ReturnType<typeof setInterval> | null} */
 let countdownInterval = null
 /** @type {string | null} */
@@ -134,7 +136,7 @@ async function loadAuthConfig () {
     // Load plugin config first
     pluginConfig = await homebridge.getPluginConfig()
     if (!pluginConfig.length) {
-      pluginConfig.push({})
+      pluginConfig.push({ platform: 'Yoto' })
     }
 
     /** @type {AuthConfigResponse} */
@@ -269,89 +271,117 @@ function startCountdown (expiresIn) {
 
     if (remaining <= 0) {
       if (countdownInterval) clearInterval(countdownInterval)
-      if (pollingInterval) clearInterval(pollingInterval)
+      stopPolling()
       showError('The authorization code has expired. Please try again.')
     }
   }, 1000)
 }
 
 /**
- * Start polling for token
+ * Stop polling for token
+ */
+function stopPolling () {
+  pollingActive = false
+  if (pollingInterval) clearTimeout(pollingInterval)
+  pollingInterval = null
+}
+
+/**
+ * Start polling for token. Each poll is scheduled after the previous request
+ * finishes so slow responses can't overlap.
  */
 function startPolling () {
-  pollingInterval = setInterval(async () => {
-    try {
-      /** @type {AuthPollResponse} */
-      const result = await homebridge.request('/auth/poll', {
-        deviceCode: deviceCode || '',
-        clientId: clientId || ''
-      })
+  pollingActive = true
+  scheduleNextPoll()
+}
 
-      // Type guard: check if success response
-      if ('success' in result && result.success) {
-        // Success! Update config with tokens
-        if (pollingInterval) clearInterval(pollingInterval)
-        if (countdownInterval) clearInterval(countdownInterval)
+/**
+ * Schedule the next token poll
+ */
+function scheduleNextPoll () {
+  if (!pollingActive) return
+  pollingInterval = setTimeout(pollForToken, pollIntervalSeconds * 1000)
+}
 
-        // Update plugin config with new tokens
-        if (!pluginConfig[0]) pluginConfig[0] = {}
-        // Type narrowing: result.success is true, so we have AuthPollSuccessResponse
-        pluginConfig[0].refreshToken = result.refreshToken
-        pluginConfig[0].accessToken = result.accessToken
-        pluginConfig[0].tokenExpiresAt = result.tokenExpiresAt
+/**
+ * Poll once for token
+ * @returns {Promise<void>}
+ */
+async function pollForToken () {
+  if (!pollingActive) return
 
-        // Ensure clientId is set (use the one we got from the flow)
-        if (!pluginConfig[0].clientId && clientId) {
-          pluginConfig[0].clientId = clientId
-        }
+  try {
+    /** @type {AuthPollResponse} */
+    const result = await homebridge.request('/auth/poll', {
+      deviceCode: deviceCode || '',
+      clientId: clientId || ''
+    })
 
-        // Save to Homebridge config
-        await homebridge.updatePluginConfig(pluginConfig)
-        await homebridge.savePluginConfig()
-
-        homebridge.toast.success('Authentication successful!')
-        homebridge.toast.info('Please restart the plugin for changes to take effect', 'Restart Required')
-        showAuthSuccess()
-      } else if ('slow_down' in result && result.slow_down) {
-        // Type guard: check if slow_down response
-        // Use the interval from the server response, or increase by 1.5x as fallback
-        if (pollingInterval) clearInterval(pollingInterval)
-        const slowDownResult = /** @type {AuthPollSlowDownResponse} */ (result)
-        pollIntervalSeconds = slowDownResult.interval || (pollIntervalSeconds * 1.5)
-        console.log('[Client] Slowing down polling to', pollIntervalSeconds, 'seconds')
-        startPolling()
-      }
-      // If pending (has 'pending' property), just continue polling
-    } catch (error) {
-      // Stop polling on error
-      if (pollingInterval) clearInterval(pollingInterval)
+    // Type guard: check if success response
+    if ('success' in result && result.success) {
+      // Success! Update config with tokens
+      stopPolling()
       if (countdownInterval) clearInterval(countdownInterval)
 
-      // Debug: Log the raw error
-      console.error('Poll error (raw):', error)
-      console.error('Poll error (type):', typeof error)
-      console.error('Poll error (keys):', error && typeof error === 'object' ? Object.keys(error) : 'N/A')
+      // Update plugin config with new tokens
+      if (!pluginConfig[0]) pluginConfig[0] = {}
+      // Type narrowing: result.success is true, so we have AuthPollSuccessResponse
+      pluginConfig[0].refreshToken = result.refreshToken
+      pluginConfig[0].accessToken = result.accessToken
+      pluginConfig[0].tokenExpiresAt = result.tokenExpiresAt
 
-      // Extract error message from various error formats
-      let errorMessage = 'Authentication failed'
-      if (error && typeof error === 'object') {
-        if ('message' in error && error.message) {
-          errorMessage = String(error.message)
-        } else if ('error' in error && error.error) {
-          errorMessage = String(error.error)
-        } else {
-          errorMessage = JSON.stringify(error)
-        }
-      } else if (error) {
-        errorMessage = String(error)
+      // Ensure clientId is set (use the one we got from the flow)
+      if (!pluginConfig[0].clientId && clientId) {
+        pluginConfig[0].clientId = clientId
       }
 
-      console.error('Poll error (extracted message):', errorMessage)
+      // Save to Homebridge config
+      await homebridge.updatePluginConfig(pluginConfig)
+      await homebridge.savePluginConfig()
 
-      homebridge.toast.error('Authentication failed', errorMessage)
-      showError(errorMessage)
+      homebridge.toast.success('Authentication successful!')
+      homebridge.toast.info('Please restart the plugin for changes to take effect', 'Restart Required')
+      showAuthSuccess()
+    } else if ('slow_down' in result && result.slow_down) {
+      // Type guard: check if slow_down response
+      // Use the interval from the server response, or increase by 1.5x as fallback
+      const slowDownResult = /** @type {AuthPollSlowDownResponse} */ (result)
+      pollIntervalSeconds = slowDownResult.interval || (pollIntervalSeconds * 1.5)
+      console.log('[Client] Slowing down polling to', pollIntervalSeconds, 'seconds')
+      scheduleNextPoll()
+    } else {
+      // Pending - keep polling
+      scheduleNextPoll()
     }
-  }, pollIntervalSeconds * 1000)
+  } catch (error) {
+    // Stop polling on error
+    stopPolling()
+    if (countdownInterval) clearInterval(countdownInterval)
+
+    // Debug: Log the raw error
+    console.error('Poll error (raw):', error)
+    console.error('Poll error (type):', typeof error)
+    console.error('Poll error (keys):', error && typeof error === 'object' ? Object.keys(error) : 'N/A')
+
+    // Extract error message from various error formats
+    let errorMessage = 'Authentication failed'
+    if (error && typeof error === 'object') {
+      if ('message' in error && error.message) {
+        errorMessage = String(error.message)
+      } else if ('error' in error && error.error) {
+        errorMessage = String(error.error)
+      } else {
+        errorMessage = JSON.stringify(error)
+      }
+    } else if (error) {
+      errorMessage = String(error)
+    }
+
+    console.error('Poll error (extracted message):', errorMessage)
+
+    homebridge.toast.error('Authentication failed', errorMessage)
+    showError(errorMessage)
+  }
 }
 
 /**
@@ -391,6 +421,7 @@ async function logout () {
 
     homebridge.hideSpinner()
     homebridge.toast.success('Logged out successfully')
+    homebridge.toast.info('Restart Homebridge to disconnect from your Yoto account', 'Restart Required')
 
     // Show auth required screen
     showAuthRequired()
