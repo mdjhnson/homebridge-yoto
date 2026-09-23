@@ -128,6 +128,12 @@
               }
             }
           },
+          "shortcuts": {
+            "title": "Shortcuts",
+            "type": "boolean",
+            "default": false,
+            "description": "Expose a switch for each shortcut configured on the Yoto (in the Yoto app under the player's shortcut buttons). Turning a switch on plays that shortcut."
+          },
           "dayMode": {
             "title": "Day Mode",
             "type": "boolean",
@@ -195,6 +201,7 @@
         "services.nightlight",
         "services.bluetooth",
         "services.sleepTimer",
+        "services.shortcuts",
         {
           "type": "help",
           "helpvalue": "<p><strong>Card Controls:</strong> Add switches that play a specific card ID on each Yoto. Enable \"Play on All Yotos\" to create a separate accessory.</p>"
