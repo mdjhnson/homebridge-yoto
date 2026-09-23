@@ -1,4 +1,0 @@
-strictDepBuilds: true
-
-ignoredBuiltDependencies:
-  - unrs-resolver

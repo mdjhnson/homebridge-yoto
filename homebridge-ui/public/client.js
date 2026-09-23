@@ -1,5 +1,4 @@
 /// <reference lib="dom" />
-/* eslint-env browser */
 
 /**
  * @fileoverview Client-side UI logic for Yoto Homebridge plugin OAuth authentication
