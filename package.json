@@ -20,7 +20,6 @@
     "auto-changelog": "^2.0.0",
     "c8": "^10.0.0",
     "eslint": "^9.39.2",
-    "gh-release": "^7.0.0",
     "globals": "^17.12.0",
     "homebridge": "^2.4.0",
     "neostandard": "^0.12.0",
@@ -60,7 +59,6 @@
     "url": "git+https://github.com/mdjhnson/homebridge-yoto.git"
   },
   "scripts": {
-    "prepublishOnly": "git push --follow-tags && gh-release -y",
     "test": "run-s test:*",
     "test:lint": "eslint",
     "test:tsc": "tsc",

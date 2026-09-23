@@ -11,7 +11,7 @@
       "clientId": {
         "title": "OAuth Client ID",
         "type": "string",
-        "default": "Y4HJ8BFqRQ24GQoLzgOzZ2KSqWmFG8LI",
+        "default": "tpc_ot5BY24FLyZoCX9MnykipB",
         "required": false,
         "description": "OAuth client ID for Yoto API authentication. The default works for most users. Only change if you've created your own OAuth app at yoto.dev.",
         "x-schema-form": {

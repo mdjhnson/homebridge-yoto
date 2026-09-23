@@ -115,7 +115,7 @@ npm install
 npm test   # eslint + tsc + node:test with coverage
 ```
 
-Releases are cut with the **npm bump** GitHub Action (Actions → npm bump → Run workflow). It needs an `NPM_TOKEN` repository secret.
+Releases are cut with the **npm bump** GitHub Action (Actions → npm bump → Run workflow). It publishes with [npm trusted publishing](https://docs.npmjs.com/trusted-publishers), so no npm token is stored in the repo.
 
 ## License
 
