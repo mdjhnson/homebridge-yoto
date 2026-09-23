@@ -4,7 +4,7 @@
 
 import { HomebridgePluginUiServer, RequestError } from '@homebridge/plugin-ui-utils'
 import { YotoClient } from 'yoto-nodejs-client'
-import { DEFAULT_CLIENT_ID } from '../lib/settings.js'
+import { DEFAULT_CLIENT_ID, OAUTH_SCOPES } from '../lib/settings.js'
 
 /**
  * Custom UI server for Yoto plugin OAuth authentication
@@ -77,7 +77,7 @@ async function startDeviceFlow (payload) {
     console.log('[Server] Requesting device code from Yoto API...')
     const deviceCodeResponse = await YotoClient.requestDeviceCode({
       clientId,
-      scope: 'openid profile offline_access',
+      scope: OAUTH_SCOPES,
       audience: 'https://api.yotoplay.com'
     })
     console.log('[Server] Device code response:', JSON.stringify(redactSensitive(deviceCodeResponse), null, 2))

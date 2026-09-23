@@ -41,6 +41,8 @@ Requires Node.js 22+ and Homebridge 1.8+ or 2.x.
 2. Click **Start Authentication** and follow the link to approve access with your Yoto account.
 3. Tokens are saved automatically. Restart Homebridge.
 
+The plugin asks for access to view, configure and control your players, plus read-only access to your card library (used to name shortcut switches). If you signed in with an older version, sign in again so the new permissions apply.
+
 The plugin refreshes its tokens on its own. If the login ever expires or is revoked, the Homebridge log will say so. Sign in again from the plugin settings.
 
 ## Settings
