@@ -118,12 +118,27 @@ function showError (message) {
 }
 
 /**
+ * The details a server RequestError sends as its payload
+ * (homebridge.request rejects with `{ message, error: payload }`)
+ * @param {unknown} error
+ * @returns {Record<string, unknown> | undefined}
+ */
+function getErrorPayload (error) {
+  if (error && typeof error === 'object' && 'error' in error && error.error && typeof error.error === 'object') {
+    return /** @type {Record<string, unknown>} */ (error.error)
+  }
+  return undefined
+}
+
+/**
  * Extract a readable message from a homebridge.request error
  * @param {unknown} error
  * @param {string} fallback
  * @returns {string}
  */
 function getErrorMessage (error, fallback) {
+  const payloadMessage = getErrorPayload(error)?.['message']
+  if (payloadMessage) return String(payloadMessage)
   if (error && typeof error === 'object') {
     if ('message' in error && error.message) return String(error.message)
     if ('error' in error && error.error) return String(error.error)
@@ -177,6 +192,11 @@ function getConfiguredClientId () {
  * @returns {Promise<void>}
  */
 async function startAuthorization () {
+  // Open the tab now, while we still have the click; opening it after the
+  // request below would be blocked as a popup (notably by Safari).
+  const signInWindow = window.open('', '_blank')
+  if (signInWindow) signInWindow.opener = null
+
   try {
     homebridge.showSpinner()
 
@@ -196,8 +216,13 @@ async function startAuthorization () {
 
     showSection('authCodeSection')
     homebridge.hideSpinner()
-    openAuthorizeUrl()
+    if (signInWindow && !signInWindow.closed) {
+      signInWindow.location.href = response.authorizeUrl
+    } else {
+      openAuthorizeUrl()
+    }
   } catch (error) {
+    signInWindow?.close()
     homebridge.hideSpinner()
     const errorMessage = getErrorMessage(error, 'Failed to start sign-in')
     homebridge.toast.error('Failed to start sign-in', errorMessage)
@@ -268,7 +293,7 @@ async function finishAuthorization () {
     const errorMessage = getErrorMessage(error, 'Sign-in failed')
     homebridge.toast.error('Sign-in failed', errorMessage)
     // Keep the paste box open for recoverable problems (e.g. pasted the wrong thing)
-    if (/expired|already used|denied|different sign-in/i.test(errorMessage)) {
+    if (getErrorPayload(error)?.['restart'] === true) {
       showError(errorMessage)
     }
   }

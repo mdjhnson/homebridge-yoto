@@ -20,6 +20,8 @@ import { createOAuthState, createPkcePair, parseAuthorizationResponse } from '..
 const AUDIENCE = 'https://api.yotoplay.com'
 /** Sign-in attempts are discarded after this long */
 const PENDING_AUTH_TTL_MS = 15 * 60 * 1000
+/** Used when the token response has no expires_in; the plugin refreshes early anyway */
+const DEFAULT_EXPIRES_IN_S = 60 * 60
 
 /**
  * @typedef {Object} PendingAuth
@@ -118,6 +120,26 @@ async function startAuthorization (payload) {
 }
 
 /**
+ * Error payload for /auth/exchange failures
+ * @typedef {Object} AuthExchangeError
+ * @property {string} message - Message to show the user
+ * @property {boolean} restart - True when this sign-in attempt can't continue and a new one must be started
+ */
+
+/**
+ * Throw an /auth/exchange error
+ * @param {string} title
+ * @param {string} message
+ * @param {boolean} restart - Whether the user must start a new sign-in
+ * @returns {never}
+ */
+function throwExchangeError (title, message, restart) {
+  /** @type {AuthExchangeError} */
+  const body = { message, restart }
+  throw new RequestError(title, body)
+}
+
+/**
  * Request payload for /auth/exchange endpoint
  * @typedef {Object} AuthExchangeRequest
  * @property {string} state - State returned by /auth/start
@@ -143,31 +165,35 @@ async function exchangeAuthorizationCode (payload) {
 
   const pending = payload?.state ? pendingAuths.get(payload.state) : undefined
   if (!pending) {
-    throw new RequestError('Sign-in expired', {
-      message: 'This sign-in attempt has expired. Click "Sign in with Yoto" to start again.'
-    })
+    throwExchangeError('Sign-in expired', 'This sign-in attempt has expired. Click "Sign in with Yoto" to start again.', true)
   }
 
   const parsed = parseAuthorizationResponse(typeof payload.response === 'string' ? payload.response : '')
+
+  // Check state first, so an address from another attempt can't cancel this one.
+  // A bare pasted code has no state; PKCE still ties it to this attempt's verifier.
+  if (parsed.state && parsed.state !== payload.state) {
+    throwExchangeError(
+      'Sign-in mismatch',
+      'That address is from a different sign-in attempt. Use the link from your most recent "Sign in with Yoto" click.',
+      false
+    )
+  }
 
   if (parsed.error) {
     pendingAuths.delete(payload.state)
     const message = parsed.error === 'access_denied'
       ? 'Access was denied. Click "Sign in with Yoto" to try again.'
       : `Yoto returned an error: ${parsed.errorDescription || parsed.error}`
-    throw new RequestError('Sign-in failed', { message })
+    throwExchangeError('Sign-in failed', message, true)
   }
 
   if (!parsed.code) {
-    throw new RequestError('Missing code', {
-      message: 'Paste the full address from your browser after signing in. It starts with http://127.0.0.1:8787/callback?code='
-    })
-  }
-
-  if (parsed.state && parsed.state !== payload.state) {
-    throw new RequestError('Sign-in mismatch', {
-      message: 'That address is from a different sign-in attempt. Use the link from your most recent "Sign in with Yoto" click.'
-    })
+    throwExchangeError(
+      'Missing code',
+      'Paste the full address from your browser after signing in. It starts with http://127.0.0.1:8787/callback?code=',
+      false
+    )
   }
 
   try {
@@ -187,10 +213,11 @@ async function exchangeAuthorizationCode (payload) {
     pendingAuths.delete(payload.state)
     console.log('[Server] Token exchange successful')
 
+    const expiresIn = Number(tokens.expires_in)
     return {
       refreshToken: tokens.refresh_token,
       accessToken: tokens.access_token,
-      tokenExpiresAt: Date.now() + (tokens.expires_in * 1000),
+      tokenExpiresAt: Date.now() + (Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : DEFAULT_EXPIRES_IN_S) * 1000,
       clientId: pending.clientId,
     }
   } catch (error) {
@@ -198,11 +225,14 @@ async function exchangeAuthorizationCode (payload) {
     const description = err.jsonBody?.error_description || err.jsonBody?.error || err.textBody
     const message = description || (error instanceof Error ? error.message : String(error))
     console.error('[Server] Token exchange failed:', message)
-    throw new RequestError('Token exchange failed', {
-      message: err.jsonBody?.error === 'invalid_grant'
-        ? 'That sign-in code was already used or has expired. Click "Sign in with Yoto" to start again.'
-        : message
-    })
+    if (err.jsonBody?.error === 'invalid_grant') {
+      throwExchangeError(
+        'Token exchange failed',
+        'That sign-in code was already used or has expired. Click "Sign in with Yoto" to start again.',
+        true
+      )
+    }
+    throwExchangeError('Token exchange failed', message, false)
   }
 }
 

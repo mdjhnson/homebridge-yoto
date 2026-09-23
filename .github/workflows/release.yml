@@ -43,10 +43,14 @@ jobs:
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
     - name: npm version
       run: npm version ${{ inputs.newversion }} -m "%s"
-    - name: Push version commit and tag
-      run: git push --follow-tags
+    # Publish before pushing, so a failed publish doesn't leave a tag for a
+    # version that was never released. Trusted publishing can only be set up on
+    # a package that already exists on npm, so the very first release must be
+    # published by hand (npm publish) before this workflow can publish.
     - name: npm publish
       run: npm publish
+    - name: Push version commit and tag
+      run: git push --follow-tags
     - name: Create GitHub release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
