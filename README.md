@@ -37,9 +37,12 @@ Requires Node.js 22+ and Homebridge 1.8+ or 2.x.
 
 ## Sign in
 
-1. Open the plugin's **Settings** in the Homebridge UI.
-2. Click **Start Authentication** and follow the link to approve access with your Yoto account.
-3. Tokens are saved automatically. Restart Homebridge.
+1. Open the plugin's **Settings** in the Homebridge UI and click **Sign in with Yoto**. Yoto's sign-in page opens in a new tab.
+2. Sign in and approve access.
+3. Your browser then shows *"This site can't be reached"* at `127.0.0.1`. That's expected. Copy the full address from the address bar, paste it into the plugin settings, and click **Finish Sign-in**.
+4. Restart Homebridge.
+
+Using your own Yoto developer app? Make it a **Public Client**, add `http://127.0.0.1:8787/callback` as an allowed callback URL, enable the `family:devices:*`, `family:library:view`, `user:content:view` and `offline_access` scopes, and enter its client ID under **Advanced Settings** before signing in.
 
 The plugin asks for access to view, configure and control your players, plus read-only access to your card library (used to name shortcut switches). If you signed in with an older version, sign in again so the new permissions apply.
 

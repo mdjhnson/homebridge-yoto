@@ -13,16 +13,13 @@
   <!-- Authentication Required Section -->
   <div id="authRequired" style="display: none">
     <div class="alert alert-warning">
-      <h5>Yoto Authentication Required</h5>
-      <p>
-        To connect your Yoto devices to HomeKit, please authorize this plugin:
-      </p>
-
+      <h5>Sign in to Yoto</h5>
+      <p>To connect your Yoto players to HomeKit, sign in with your Yoto account:</p>
       <ol>
-        <li>Click the button below to start authentication</li>
-        <li>Visit the Yoto website when prompted</li>
-        <li>Enter the code shown</li>
-        <li>Wait for confirmation</li>
+        <li>Click <strong>Sign in with Yoto</strong>. The Yoto sign-in page opens in a new tab.</li>
+        <li>Sign in and approve access.</li>
+        <li>Your browser then shows a <em>"This site can't be reached"</em> page. That's expected.</li>
+        <li>Copy the full address from that page's address bar and paste it back here.</li>
       </ol>
     </div>
 
@@ -43,7 +40,9 @@
           />
           <small class="grey-text help-block small" id="clientIdHelp">
             Default: <code id="defaultClientIdDisplay">Loading...</code>. Only
-            change this if you have your own Yoto OAuth application.
+            change this if you have your own Yoto developer app. It must be a
+            Public Client with <code id="redirectUriDisplay">http://127.0.0.1:8787/callback</code>
+            as an allowed callback URL.
           </small>
         </div>
       </div>
@@ -51,68 +50,56 @@
 
     <div class="text-center">
       <button id="startAuthButton" type="button" class="btn btn-primary btn-lg">
-        Start Authentication
+        Sign in with Yoto
       </button>
     </div>
   </div>
 
-  <!-- Device Code Display -->
-  <div id="deviceCodeSection" style="display: none">
+  <!-- Paste Redirect Section -->
+  <div id="authCodeSection" style="display: none">
     <div class="alert alert-info">
-      <h5>Complete Authentication</h5>
+      <h5>Finish signing in</h5>
+      <ol>
+        <li>
+          Sign in on the Yoto page that just opened.
+          <button id="openAuthorizeButton" type="button" class="btn btn-link btn-sm p-0 align-baseline">
+            Open it again
+          </button>
+        </li>
+        <li>
+          After you approve, your browser shows <em>"This site can't be reached"</em>
+          at <code>127.0.0.1</code>. That's expected.
+        </li>
+        <li>Copy the full address from the address bar and paste it below.</li>
+      </ol>
 
       <div class="form-group">
-        <label>Click to authorize (code included in URL)</label>
-        <div class="input-group">
-          <input
-            type="text"
-            class="form-control"
-            id="verificationUrlComplete"
-            readonly
-          />
-          <div class="input-group-append">
-            <button class="btn btn-primary" type="button" id="openUrlButton">
-              Open &amp; Authorize
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Or manually enter this code</label>
+        <label for="callbackInput">Address from your browser</label>
         <input
           type="text"
-          class="form-control form-control-lg text-center"
-          id="userCode"
-          readonly
-          style="font-family: monospace; font-weight: bold"
+          class="form-control"
+          id="callbackInput"
+          placeholder="http://127.0.0.1:8787/callback?code=...&state=..."
+          autocomplete="off"
+          spellcheck="false"
         />
       </div>
 
-      <div class="form-group">
-        <label>Time remaining</label>
-        <div class="progress">
-          <div
-            id="countdownBar"
-            class="progress-bar"
-            role="progressbar"
-            style="width: 100%"
-          >
-            <span id="countdownText">15:00</span>
-          </div>
-        </div>
+      <div class="text-center">
+        <button id="finishAuthButton" type="button" class="btn btn-primary">
+          Finish Sign-in
+        </button>
+        <button id="cancelAuthButton" type="button" class="btn btn-link">
+          Cancel
+        </button>
       </div>
-
-      <p class="text-center">
-        <small>Waiting for authorization...</small>
-      </p>
     </div>
   </div>
 
   <!-- Success Message -->
   <div id="authSuccess" style="display: none">
     <div class="alert alert-success">
-      <h5>✓ Authentication Successful!</h5>
+      <h5>✓ Signed in to Yoto</h5>
       <p>
         Your Yoto account is connected. The plugin will now discover your
         devices.
