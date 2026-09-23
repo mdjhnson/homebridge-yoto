@@ -13,7 +13,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        node: ['lts/*']
+        # Every Node.js line in package.json engines (Homebridge supports the current LTS releases)
+        node: ['22', '24', '26']
 
     steps:
     - uses: actions/checkout@v6

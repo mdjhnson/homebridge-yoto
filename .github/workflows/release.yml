@@ -54,6 +54,14 @@ jobs:
     - name: Create GitHub release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Use this version's CHANGELOG.md section as the release notes (Homebridge
+      # verification expects notes on every release), or GitHub's generated notes
+      # when the section is empty.
       run: |
         TAG="v$(node -p "require('./package.json').version")"
-        gh release create "$TAG" --title "$TAG" --generate-notes
+        awk -v tag="$TAG" '/^## /{ if (found) exit; if (index($0, "[" tag "]") || $0 ~ ("^## " tag "( |$)")) { found=1; next } } found' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+        if grep -q '[^[:space:]]' "$RUNNER_TEMP/release-notes.md"; then
+          gh release create "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+        else
+          gh release create "$TAG" --title "$TAG" --generate-notes
+        fi
