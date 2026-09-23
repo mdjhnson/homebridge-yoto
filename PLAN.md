@@ -4,8 +4,8 @@
 
 ### Architecture
 - ✅ Platform plugin using `yoto-nodejs-client` for device management
-- ✅ One bridged accessory per Yoto device, optional external SmartSpeaker accessory when `services.playbackAccessory=external`
-- ✅ External SmartSpeaker uses a dedicated accessory handler and is published once per runtime
+- ✅ One bridged accessory per Yoto device, plus optional external SmartSpeaker (`services.smartSpeaker`) and TV (`services.television`) accessories
+- ✅ External accessories use dedicated handlers and are published once per runtime (handlers re-attach if a device reconnects)
 - ✅ Real-time updates via MQTT + periodic HTTP polling fallback
 - ✅ Offline detection and "No Response" status handling
 - ✅ Capability-based service registration (v2/v3/mini device support)
@@ -17,8 +17,8 @@
 - ✅ **Battery** - Battery level, charging state, low battery indicator
 
 ### Configurable Services (Toggle + Capability)
-- ✅ **Switch (Playback)** - Playback switch (bridged mode only)
-- ✅ **Lightbulb (Volume)** - Volume + mute controls (bridged mode only)
+- ✅ **Switch (Playback)** - Playback switch (`services.playbackControls`)
+- ✅ **Lightbulb (Volume)** - Volume + mute controls (`services.playbackControls`)
 - ✅ **TemperatureSensor** - Temperature reading (v3 only, toggle)
 - ✅ **Lightbulb (DayNightlight)** - Day nightlight color/brightness (v3 only, toggle)
 - ✅ **Lightbulb (NightNightlight)** - Night nightlight color/brightness (v3 only, toggle)
@@ -32,9 +32,11 @@
 - ✅ **Switch (Bluetooth)** - Toggle Bluetooth on/off (toggle)
 - ✅ **Lightbulb (DayMaxVolume)** - Day mode max volume limit (toggle)
 - ✅ **Lightbulb (NightMaxVolume)** - Night mode max volume limit (toggle)
+- ✅ **Switch (Shortcut)** - One per device shortcut (`services.shortcuts`)
 
 ### External Accessories (Optional)
-- ✅ **SmartSpeaker** - External SmartSpeaker accessory when `services.playbackAccessory=external`
+- ✅ **SmartSpeaker** - External SmartSpeaker accessory (`services.smartSpeaker`)
+- ✅ **Television** - External TV playback accessory with card control and shortcut inputs (`services.television`)
 
 ### Additional Accessories (Optional)
 - ✅ **Card Control (All Yotos)** - Separate accessory per card control when `playOnAll` is enabled
@@ -45,7 +47,7 @@ All services are named consistently using `generateServiceName()` helper: `"[Dev
 
 ### Yoto Player Accessory (Bridged)
 
-Each Yoto device is represented as a bridged HomeKit accessory. Playback controls are exposed on this accessory only when `services.playbackAccessory=bridged`.
+Each Yoto device is represented as a bridged HomeKit accessory. Playback controls are exposed on this accessory only when `services.playbackControls` is enabled.
 
 **Category**: `SPEAKER`
 
@@ -293,24 +295,25 @@ Control night mode maximum volume limit (config-based, works offline).
 
 ---
 
-#### Service: StatelessProgrammableSwitch (DYNAMIC) - NOT YET IMPLEMENTED
+#### Service: Switch (subtype: "Shortcut:<card>:<chapter>:<track>") - OPTIONAL
 
-One service per shortcut configured on device. Trigger shortcuts from HomeKit.
+One momentary switch per shortcut configured on the device. Named after the card title when it can be looked up.
+
+A StatelessProgrammableSwitch was considered, but those only report presses *to* HomeKit and can't be triggered from the Home app.
 
 **Characteristics:**
-- `ProgrammableSwitchEvent` (READ/NOTIFY) - SINGLE_PRESS event
-- `ServiceLabelIndex` (GET) - Index in shortcuts array
+- `On` (GET/SET) - Trigger shortcut playback; resets to Off
 
-**Source:** `config.shortcuts.modes.day.content[]` and `config.shortcuts.modes.night.content[]`  
-**Control:** `sendCommand({ action: 'play', shortcut: X })`
+**Source:** `deviceModel.shortcuts.modes.{day,night}.content[]` (`track-play` commands; duplicates across modes are merged)
+**Control:** `startCard({ cardId, chapterKey, trackKey })`
 
-**Note:** Dynamic services - created based on device configuration
+**Note:** Rebuilt when shortcuts change (shortcut changes emit `configUpdate` without a field name)
 
 ---
 
 ### External SmartSpeaker Accessory (Optional)
 
-Published when `services.playbackAccessory=external`. This accessory is separate from the bridged device accessory, requires pairing, and replaces the bridged playback/volume services.
+Published when `services.smartSpeaker` is enabled. This accessory is separate from the bridged device accessory and requires pairing.
 
 #### Service: AccessoryInformation (Required)
 
@@ -362,9 +365,10 @@ Plays a configured card ID on all online devices when toggled.
 | AccessoryInformation | ✅ | ✅ | ✅ | Main accessory |
 | ContactSensor (Online Status) | ✅ | ✅ | ✅ | Main accessory |
 | Battery | ✅ | ✅ | ✅ | Main accessory |
-| Switch (Playback) | ✅ | ✅ | ✅ | `playbackAccessory=bridged` |
-| Lightbulb (Volume) | ✅ | ✅ | ✅ | `playbackAccessory=bridged` |
-| SmartSpeaker (external) | ✅ | ✅ | ✅ | `playbackAccessory=external` |
+| Switch (Playback) | ✅ | ✅ | ✅ | `playbackControls` |
+| Lightbulb (Volume) | ✅ | ✅ | ✅ | `playbackControls` |
+| SmartSpeaker (external) | ✅ | ✅ | ✅ | `smartSpeaker` |
+| Television (external) | ✅ | ✅ | ✅ | `television` |
 | ContactSensor (CardSlot) | ✅ | ✅ | ✅ | Toggle |
 | Switch (Card Control) | ✅ | ✅ | ✅ | `services.cardControls[]` |
 | Switch (Card Control - All Yotos) | ✅ | ✅ | ✅ | `services.cardControls[].playOnAll` |
@@ -375,7 +379,7 @@ Plays a configured card ID on all online devices when toggled.
 | TemperatureSensor | ❌ | ✅ | ❌ | Toggle + capability |
 | Lightbulb (Nightlights) | ❌ | ✅ | ❌ | Toggle + capability |
 | ContactSensor (Nightlight Status) | ❌ | ✅ | ❌ | Toggle + capability |
-| StatelessProgrammableSwitch | 🚧 | 🚧 | 🚧 | Not implemented |
+| Switch (Shortcut) | ✅ | ✅ | ✅ | `shortcuts` |
 
 ---
 
@@ -401,7 +405,6 @@ Services are categorized by data source and whether they expose `StatusActive`.
 - Lightbulb (nightlight color/brightness)
 - Lightbulb (volume limits)
 - Switch (Bluetooth)
-- StatelessProgrammableSwitch (shortcuts)
 
 ### Implementation
 
@@ -411,19 +414,10 @@ Config-based services do NOT have `StatusActive` and remain accessible when offl
 
 ---
 
-## ❌ What's Left to Implement
+## ❌ What's Left
 
-### StatelessProgrammableSwitch Services (Shortcuts)
-
-Dynamic services created based on `config.shortcuts` configuration.
-
-**Implementation Notes:**
-- Parse `config.shortcuts.modes.day.content[]` and `config.shortcuts.modes.night.content[]`
-- Create one service per unique shortcut
-- Handle shortcuts refresh when config changes
-- Trigger with `sendCommand({ action: 'play', shortcut: X })`
-
-**Complexity:** Dynamic service lifecycle management, shortcut identification
+- Real-device verification of the Testing Checklist below
+- Next/previous track on the TV remote (Yoto's MQTT API has no skip command)
 
 ---
 
@@ -488,7 +482,7 @@ await deviceModel.updateConfig({ bluetoothEnabled: true })
 
 ### Basic Functionality
 - [ ] Device discovery and accessory creation
-- [ ] Playback control (bridged + external)
+- [ ] Playback control (bridged, SmartSpeaker, TV)
 - [ ] Volume control (bridged + external)
 - [ ] External SmartSpeaker pairing (when enabled)
 - [ ] Battery status updates
@@ -503,6 +497,8 @@ await deviceModel.updateConfig({ bluetoothEnabled: true })
 - [ ] Card slot detection (all devices)
 - [ ] Card control switches (per device)
 - [ ] Card control (All Yotos) accessory
+- [ ] Shortcut switches play the right content and rename to card titles
+- [ ] TV inputs play card controls and shortcuts
 - [ ] Day mode detection (all devices)
 - [ ] Sleep timer control (all devices)
 - [ ] Bluetooth toggle (all devices)

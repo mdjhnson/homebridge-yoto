@@ -1,7 +1,6 @@
 node_modules
 sandbox.js
 .nyc_output
-package-lock.json
 coverage
 .tap
 
@@ -13,3 +12,6 @@ coverage
 *.d.cts.map
 *.d.mts
 *.d.mts.map
+
+# Personal Claude Code settings
+.claude/settings.local.json

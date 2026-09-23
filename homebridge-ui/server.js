@@ -1,10 +1,37 @@
 /**
  * @fileoverview Custom UI server for Yoto Homebridge plugin OAuth authentication
+ *
+ * Uses the OAuth 2.0 Authorization Code flow with PKCE. The user signs in on
+ * Yoto's site, lands on the (unreachable) loopback redirect URI, and pastes that
+ * address back into the plugin settings. The PKCE verifier never leaves this
+ * server, so the pasted code is useless to anyone else.
  */
 
 import { HomebridgePluginUiServer, RequestError } from '@homebridge/plugin-ui-utils'
 import { YotoClient } from 'yoto-nodejs-client'
-import { DEFAULT_CLIENT_ID } from '../lib/settings.js'
+import {
+  DEFAULT_CLIENT_ID,
+  LEGACY_CLIENT_IDS,
+  OAUTH_REDIRECT_URI,
+  OAUTH_SCOPES,
+} from '../lib/settings.js'
+import { createOAuthState, createPkcePair, parseAuthorizationResponse } from '../lib/utils/oauth.js'
+
+const AUDIENCE = 'https://api.yotoplay.com'
+/** Sign-in attempts are discarded after this long */
+const PENDING_AUTH_TTL_MS = 15 * 60 * 1000
+/** Used when the token response has no expires_in; the plugin refreshes early anyway */
+const DEFAULT_EXPIRES_IN_S = 60 * 60
+
+/**
+ * @typedef {Object} PendingAuth
+ * @property {string} codeVerifier
+ * @property {string} clientId
+ * @property {number} createdAt
+ */
+
+/** @type {Map<string, PendingAuth>} */
+const pendingAuths = new Map()
 
 /**
  * Custom UI server for Yoto plugin OAuth authentication
@@ -17,8 +44,8 @@ class YotoUiServer extends HomebridgePluginUiServer {
 
     // Register OAuth endpoints
     this.onRequest('/auth/config', getAuthConfig)
-    this.onRequest('/auth/start', startDeviceFlow)
-    this.onRequest('/auth/poll', pollForToken)
+    this.onRequest('/auth/start', startAuthorization)
+    this.onRequest('/auth/exchange', exchangeAuthorizationCode)
 
     // this MUST be called when you are ready to accept requests
     this.ready()
@@ -32,6 +59,8 @@ class YotoUiServer extends HomebridgePluginUiServer {
  * Response from /auth/config endpoint
  * @typedef {Object} AuthConfigResponse
  * @property {string} defaultClientId - The default OAuth client ID
+ * @property {string[]} legacyClientIds - Client IDs that no longer support sign-in
+ * @property {string} redirectUri - Redirect URI to register on a custom Yoto app
  */
 
 /**
@@ -40,7 +69,9 @@ class YotoUiServer extends HomebridgePluginUiServer {
  */
 async function getAuthConfig () {
   return {
-    defaultClientId: DEFAULT_CLIENT_ID
+    defaultClientId: DEFAULT_CLIENT_ID,
+    legacyClientIds: LEGACY_CLIENT_IDS,
+    redirectUri: OAUTH_REDIRECT_URI,
   }
 }
 
@@ -53,230 +84,164 @@ async function getAuthConfig () {
 /**
  * Response from /auth/start endpoint
  * @typedef {Object} AuthStartResponse
- * @property {string} verification_uri - Base URL for user verification (e.g., https://yotoplay.com/activate)
- * @property {string} verification_uri_complete - Complete URL with code pre-filled
- * @property {string} user_code - User code to enter at verification_uri
- * @property {string} device_code - Device code for polling (not shown to user)
- * @property {number} expires_in - Seconds until code expires (typically 900)
- * @property {number} interval - Recommended polling interval in seconds
- * @property {string} client_id - OAuth client ID used for this flow
+ * @property {string} authorizeUrl - Yoto sign-in URL to open in the browser
+ * @property {string} state - Identifies this sign-in attempt
+ * @property {string} clientId - OAuth client ID used for this attempt
  */
 
 /**
- * Start OAuth device flow
+ * Start an Authorization Code + PKCE sign-in
  * @param {AuthStartRequest} payload - Request with optional client ID
  * @returns {Promise<AuthStartResponse>}
  */
-async function startDeviceFlow (payload) {
-  console.log('[Server] startDeviceFlow called with payload:', JSON.stringify(redactSensitive(payload), null, 2))
-  try {
-    const clientId = payload.clientId || DEFAULT_CLIENT_ID
-    console.log('[Server] Using clientId:', clientId)
+async function startAuthorization (payload) {
+  prunePendingAuths()
 
-    // Request device code from Yoto
-    console.log('[Server] Requesting device code from Yoto API...')
-    const deviceCodeResponse = await YotoClient.requestDeviceCode({
-      clientId,
-      scope: 'openid profile offline_access',
-      audience: 'https://api.yotoplay.com'
-    })
-    console.log('[Server] Device code response:', JSON.stringify(redactSensitive(deviceCodeResponse), null, 2))
+  const requested = typeof payload?.clientId === 'string' ? payload.clientId.trim() : ''
+  const clientId = requested && !LEGACY_CLIENT_IDS.includes(requested) ? requested : DEFAULT_CLIENT_ID
+  const { codeVerifier, codeChallenge } = createPkcePair()
+  const state = createOAuthState()
 
-    // Return the device flow info to the UI
-    const result = {
-      verification_uri: deviceCodeResponse.verification_uri || '',
-      verification_uri_complete: deviceCodeResponse.verification_uri_complete || '',
-      user_code: deviceCodeResponse.user_code || '',
-      device_code: deviceCodeResponse.device_code || '',
-      expires_in: deviceCodeResponse.expires_in || 900,
-      interval: deviceCodeResponse.interval || 5,
-      client_id: clientId
-    }
-    console.log('[Server] startDeviceFlow returning:', JSON.stringify(result, null, 2))
-    return result
-  } catch (error) {
-    const err = /** @type {any} */ (error)
-    const errorBody = err.jsonBody
-    const errorDescription = errorBody?.error_description
-    const errorText = err.textBody
-    const errorDetails = []
-    if (errorDescription) errorDetails.push(errorDescription)
-    if (errorText && errorText !== errorDescription) errorDetails.push(errorText)
-    const errorMessage = errorDetails.join(' - ') ||
-      (error instanceof Error ? error.message : 'Unknown error')
-    console.error('[Server] startDeviceFlow error:', error)
-    throw new RequestError('Failed to start device flow', {
-      message: errorMessage
-    })
-  }
+  pendingAuths.set(state, { codeVerifier, clientId, createdAt: Date.now() })
+
+  const authorizeUrl = YotoClient.getAuthorizeUrl({
+    audience: AUDIENCE,
+    scope: OAUTH_SCOPES,
+    responseType: 'code',
+    clientId,
+    redirectUri: OAUTH_REDIRECT_URI,
+    state,
+    codeChallenge,
+    codeChallengeMethod: 'S256',
+  })
+
+  console.log('[Server] Started sign-in with clientId:', clientId)
+  return { authorizeUrl, state, clientId }
 }
 
 /**
- * Request payload for /auth/poll endpoint
- * @typedef {Object} AuthPollRequest
- * @property {string} deviceCode - Device code from AuthStartResponse
- * @property {string} clientId - OAuth client ID used in auth/start
+ * Error payload for /auth/exchange failures
+ * @typedef {Object} AuthExchangeError
+ * @property {string} message - Message to show the user
+ * @property {boolean} restart - True when this sign-in attempt can't continue and a new one must be started
  */
 
 /**
- * Response from /auth/poll endpoint when still pending
- * @typedef {Object} AuthPollPendingResponse
- * @property {true} pending - Indicates authorization still pending
- * @property {string} message - Status message (e.g., "Waiting for authorization...")
+ * Throw an /auth/exchange error
+ * @param {string} title
+ * @param {string} message
+ * @param {boolean} restart - Whether the user must start a new sign-in
+ * @returns {never}
+ */
+function throwExchangeError (title, message, restart) {
+  /** @type {AuthExchangeError} */
+  const body = { message, restart }
+  throw new RequestError(title, body)
+}
+
+/**
+ * Request payload for /auth/exchange endpoint
+ * @typedef {Object} AuthExchangeRequest
+ * @property {string} state - State returned by /auth/start
+ * @property {string} response - Pasted redirect address (or bare code)
  */
 
 /**
- * Response from /auth/poll endpoint when need to slow down
- * @typedef {Object} AuthPollSlowDownResponse
- * @property {true} slow_down - Indicates polling too fast
- * @property {string} message - Status message about slowing down
- * @property {number} [interval] - Updated polling interval (in seconds)
- */
-
-/**
- * Response from /auth/poll endpoint on success
- * @typedef {Object} AuthPollSuccessResponse
- * @property {true} success - Indicates successful authentication
- * @property {string} message - Success message
+ * Response from /auth/exchange endpoint
+ * @typedef {Object} AuthExchangeResponse
  * @property {string} refreshToken - OAuth refresh token (long-lived)
  * @property {string} accessToken - OAuth access token (short-lived)
- * @property {number} tokenExpiresAt - Unix timestamp when access token expires
+ * @property {number} tokenExpiresAt - Unix timestamp in ms when the access token expires
+ * @property {string} clientId - OAuth client ID the tokens belong to
  */
 
 /**
- * Union type for all possible /auth/poll responses
- * @typedef {AuthPollPendingResponse | AuthPollSlowDownResponse | AuthPollSuccessResponse} AuthPollResponse
+ * Exchange the pasted authorization response for tokens
+ * @param {AuthExchangeRequest} payload
+ * @returns {Promise<AuthExchangeResponse>}
  */
+async function exchangeAuthorizationCode (payload) {
+  prunePendingAuths()
 
-/**
- * Poll for token exchange
- * @param {AuthPollRequest} payload - Request payload with device code and client ID
- * @returns {Promise<AuthPollResponse>}
- */
-async function pollForToken (payload) {
-  console.log('[Server] pollForToken called with payload:', JSON.stringify(redactSensitive(payload), null, 2))
-  const { deviceCode, clientId } = payload
+  const pending = payload?.state ? pendingAuths.get(payload.state) : undefined
+  if (!pending) {
+    throwExchangeError('Sign-in expired', 'This sign-in attempt has expired. Click "Sign in with Yoto" to start again.', true)
+  }
 
-  if (!deviceCode || !clientId) {
-    console.error('[Server] Missing deviceCode or clientId')
-    throw new RequestError('Missing required parameters', {
-      message: 'deviceCode and clientId are required'
-    })
+  const parsed = parseAuthorizationResponse(typeof payload.response === 'string' ? payload.response : '')
+
+  // Check state first, so an address from another attempt can't cancel this one.
+  // A bare pasted code has no state; PKCE still ties it to this attempt's verifier.
+  if (parsed.state && parsed.state !== payload.state) {
+    throwExchangeError(
+      'Sign-in mismatch',
+      'That address is from a different sign-in attempt. Use the link from your most recent "Sign in with Yoto" click.',
+      false
+    )
+  }
+
+  if (parsed.error) {
+    pendingAuths.delete(payload.state)
+    const message = parsed.error === 'access_denied'
+      ? 'Access was denied. Click "Sign in with Yoto" to try again.'
+      : `Yoto returned an error: ${parsed.errorDescription || parsed.error}`
+    throwExchangeError('Sign-in failed', message, true)
+  }
+
+  if (!parsed.code) {
+    throwExchangeError(
+      'Missing code',
+      'Paste the full address from your browser after signing in. It starts with http://127.0.0.1:8787/callback?code=',
+      false
+    )
   }
 
   try {
-    // Poll for device token using helper function
-    console.log('[Server] Polling for device token...')
-    const pollResult = await YotoClient.pollForDeviceToken({
-      deviceCode,
-      clientId,
-      audience: 'https://api.yotoplay.com'
+    const tokens = await YotoClient.exchangeToken({
+      grantType: 'authorization_code',
+      code: parsed.code,
+      redirectUri: OAUTH_REDIRECT_URI,
+      codeVerifier: pending.codeVerifier,
+      clientId: pending.clientId,
+      audience: AUDIENCE,
     })
 
-    // Check if authorization is still pending
-    if (pollResult.status === 'pending') {
-      console.log('[Server] Authorization still pending...')
-      /** @type {AuthPollPendingResponse} */
-      const pendingResult = {
-        pending: true,
-        message: 'Waiting for authorization...'
-      }
-      return pendingResult
+    if (!tokens.refresh_token || !tokens.access_token) {
+      throw new Error('Token response missing required fields. Make sure offline_access is enabled on the Yoto app.')
     }
 
-    // Check if we need to slow down polling
-    if (pollResult.status === 'slow_down') {
-      const intervalSeconds = pollResult.interval / 1000 // pollResult.interval is in milliseconds, convert to seconds
-      console.log('[Server] Polling too fast, slowing down to interval:', intervalSeconds, 'seconds')
-      /** @type {AuthPollSlowDownResponse} */
-      const slowDownResult = {
-        slow_down: true,
-        message: 'Polling too fast, slowing down...',
-        interval: intervalSeconds // Client expects seconds
-      }
-      return slowDownResult
+    pendingAuths.delete(payload.state)
+    console.log('[Server] Token exchange successful')
+
+    const expiresIn = Number(tokens.expires_in)
+    return {
+      refreshToken: tokens.refresh_token,
+      accessToken: tokens.access_token,
+      tokenExpiresAt: Date.now() + (Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : DEFAULT_EXPIRES_IN_S) * 1000,
+      clientId: pending.clientId,
     }
-
-    // Success - we got tokens (status === 'success')
-    console.log('[Server] Token exchange successful!')
-
-    // Validate required token fields
-    if (!pollResult.tokens.refresh_token || !pollResult.tokens.access_token) {
-      throw new Error('Token response missing required fields')
-    }
-
-    // Calculate token expiration
-    const tokenExpiresAt = Date.now() + (pollResult.tokens.expires_in * 1000)
-
-    // Return tokens to client for saving
-    /** @type {AuthPollSuccessResponse} */
-    const result = {
-      success: true,
-      message: 'Authentication successful!',
-      refreshToken: pollResult.tokens.refresh_token,
-      accessToken: pollResult.tokens.access_token,
-      tokenExpiresAt
-    }
-    console.log('[Server] pollForToken success, returning tokens (redacted)')
-    return result
   } catch (error) {
-    // Handle errors from pollForDeviceToken
-    const err = /** @type {any} */ (error)
-    const errorBody = err.jsonBody
-    const errorCode = errorBody?.error
-    const errorDescription = errorBody?.error_description
-    const errorText = err.textBody
-
-    if (errorCode === 'expired_token') {
-      console.error('[Server] Device code expired')
-      throw new RequestError('Device code expired', {
-        message: 'The authorization code has expired. Please start over.'
-      })
+    const err = /** @type {{ jsonBody?: { error?: string, error_description?: string }, textBody?: string }} */ (error)
+    const description = err.jsonBody?.error_description || err.jsonBody?.error || err.textBody
+    const message = description || (error instanceof Error ? error.message : String(error))
+    console.error('[Server] Token exchange failed:', message)
+    if (err.jsonBody?.error === 'invalid_grant') {
+      throwExchangeError(
+        'Token exchange failed',
+        'That sign-in code was already used or has expired. Click "Sign in with Yoto" to start again.',
+        true
+      )
     }
-
-    if (errorCode === 'access_denied') {
-      console.error('[Server] Access denied by user')
-      throw new RequestError('Access denied', {
-        message: 'Authorization was denied. Please try again.'
-      })
-    }
-
-    // Unexpected error - log full details
-    console.error('[Server] Unexpected error during token poll:', error)
-    console.error('[Server] Error code:', errorCode)
-    console.error('[Server] Error description:', errorDescription)
-    if (errorText) {
-      console.error('[Server] Error body:', errorText)
-    }
-    const errorDetails = []
-    if (errorDescription) errorDetails.push(errorDescription)
-    if (errorText && errorText !== errorDescription) errorDetails.push(errorText)
-    const errorMessage = errorDetails.join(' - ') ||
-      (error instanceof Error ? error.message : String(error))
-    throw new RequestError('Token exchange failed', {
-      message: errorMessage || 'Unknown error occurred'
-    })
+    throwExchangeError('Token exchange failed', message, false)
   }
 }
 
 /**
- * Redact sensitive data from objects for logging
- * @param {any} obj - Object to redact
- * @returns {any} Redacted copy
+ * Drop sign-in attempts older than PENDING_AUTH_TTL_MS
  */
-function redactSensitive (obj) {
-  if (!obj || typeof obj !== 'object') return obj
-
-  const redacted = Array.isArray(obj) ? [...obj] : { ...obj }
-  const sensitiveKeys = ['accessToken', 'refreshToken', 'access_token', 'refresh_token', 'token', 'deviceCode', 'device_code']
-
-  for (const key in redacted) {
-    if (sensitiveKeys.includes(key) && redacted[key]) {
-      redacted[key] = '[REDACTED]'
-    } else if (key === 'config' && typeof redacted[key] === 'object') {
-      redacted[key] = redactSensitive(redacted[key])
-    }
+function prunePendingAuths () {
+  const cutoff = Date.now() - PENDING_AUTH_TTL_MS
+  for (const [state, pending] of pendingAuths) {
+    if (pending.createdAt < cutoff) pendingAuths.delete(state)
   }
-
-  return redacted
 }
