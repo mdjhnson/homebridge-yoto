@@ -2,7 +2,9 @@
 
 This document contains patterns, conventions, and guidelines for developing the homebridge-yoto plugin.
 
-## Dont write summary markdown files unless asked to do so
+**Also read `CLAUDE.md`** for commands, the code layout, Yoto API quirks verified on real players (OAuth + PKCE sign-in, scopes, the status-endpoint fallback, volume rounding, built-in shortcuts), testing, and releases. Never send commands to a real Yoto player without asking the user first.
+
+## Don't write summary markdown files unless asked to do so
 
 ## JSDoc Typing Patterns
 
@@ -57,7 +59,8 @@ Import types using the `@import` JSDoc tag to avoid runtime imports of type-only
 
 ```javascript
 /** @import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge' */
-/** @import { YotoDevice, YotoDeviceStatus, YotoDeviceConfig } from './types.js' */
+/** @import { YotoDevice } from 'yoto-nodejs-client/lib/api-endpoints/devices.js' */
+/** @import { YotoDeviceModel } from 'yoto-nodejs-client' */
 
 /**
  * @param {Logger} log
@@ -78,7 +81,7 @@ Keep regular imports and type imports separate. Use single-line imports for type
 ```javascript
 import { EventEmitter } from 'events';
 
-/** @import { YotoDevice } from './types.js' */
+/** @import { YotoDevice } from 'yoto-nodejs-client/lib/api-endpoints/devices.js' */
 /** @import { API, PlatformAccessory } from 'homebridge' */
 ```
 
