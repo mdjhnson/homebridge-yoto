@@ -20,7 +20,7 @@ node --test lib/foo.test.js
 ```
 
 - Plain ESM JavaScript. There is no build step, and `tsc` only type-checks.
-- Node >= 22.
+- Node 22, 24 or 26 (the `engines` range). CI tests all three.
 - Tests sit next to the source as `*.test.js` and are excluded from the package via `files` in `package.json`.
 
 ## Layout
@@ -69,6 +69,8 @@ node --test lib/foo.test.js
 - **Shortcut changes** emit `configUpdate` with no field name in `changedFields`. Compare `getShortcutsSignature()` instead.
 - **Shared device model:** several accessory handlers use one `YotoDeviceModel`. Register listeners through `ListenerGroup` and never call `removeAllListeners` on the model; that removed other handlers' `error` listeners and could crash Homebridge.
 - **External accessories can't be unpublished** in Homebridge. When one goes away, log a warning instead.
+- **Nothing may throw out of the plugin.** Homebridge doesn't catch errors from platform constructors, async event listeners or un-awaited promises; any of them crashes Homebridge (and fails verification). Keep the try/catch around `new YotoAccount()` (it throws on a malformed saved token) and in the `deviceAdded` listener, and pass an error callback to `ListenerGroup`.
+- **Startup retries:** if `account.start()` fails, `connectAccount()` retries with backoff (30 s doubling to 10 min) unless the login is invalid.
 
 ## Testing
 
