@@ -39,10 +39,10 @@ Requires Node.js 22+ and Homebridge 1.8+ or 2.x.
 
 1. Open the plugin's **Settings** in the Homebridge UI and click **Sign in with Yoto**. Yoto's sign-in page opens in a new tab.
 2. Sign in and approve access.
-3. Your browser then shows *"This site can't be reached"* at `127.0.0.1`. That's expected. Copy the full address from the address bar, paste it into the plugin settings, and click **Finish Sign-in**.
+3. Your browser then shows *"This site can't be reached"* at `127.0.0.1`. That's expected. Copy the full address from the address bar, paste it into the **Address from your browser** box on the sign-in screen, and click **Finish Sign-in**.
 4. Restart Homebridge.
 
-Using your own Yoto developer app? Make it a **Public Client**, add `http://127.0.0.1:8787/callback` as an allowed callback URL, enable the `family:devices:*`, `family:library:view`, `user:content:view` and `offline_access` scopes, and enter its client ID under **Advanced Settings** before signing in.
+Using your own Yoto developer app? Make it a **Public Client**, add `http://127.0.0.1:8787/callback` as an allowed callback URL, enable the `family:devices:*`, `family:library:view`, `user:content:view` and `offline_access` scopes, and enter its client ID in the **Advanced Settings** panel on the sign-in screen before signing in. (That panel is only shown while you're signed out, and is separate from the **Advanced** section of the plugin settings.)
 
 The plugin asks for access to view, configure and control your players, plus read-only access to your card library (used to name shortcut switches). If you signed in with an older version, sign in again so the new permissions apply.
 
@@ -69,9 +69,9 @@ The TV accessory, and the legacy Smart Speaker below, are external accessories. 
 **Service toggles**
 - **Battery**, **Temperature Sensor** (v3), **Nightlight** (v3), **Card Slot**, **Day Mode**, **Sleep Timer**, **Bluetooth**, **Volume Limits**.
 
-**Advanced**
+**Advanced** (collapsed section at the bottom of the plugin settings)
 - **HTTP Poll Interval**: How often to poll the Yoto API as a fallback to MQTT. Defaults to 60 seconds; the minimum is 10 seconds.
-- **External Smart Speaker (Legacy)**: Kept for existing setups. It publishes a separate Smart Speaker accessory that only works in Home app scenes and automations. When you open it, the Home app shows *"Controls not available"* and always reports it as stopped, because iOS only offers live controls for AirPlay speakers. It does not make the Yoto an AirPlay target. For more features, use the **TV Playback Accessory** instead.
+- **External Smart Speaker (Legacy)**: Kept for existing setups. It publishes a separate Smart Speaker accessory that only works in Home app scenes and automations. When you open it, the Home app shows *"Controls not available"* and can't show what's playing, because iOS only offers live controls for AirPlay speakers. It does not make the Yoto an AirPlay target. For more features, use the **TV Playback Accessory** instead.
 
 ## HomeKit services
 

@@ -4,7 +4,7 @@
 
 ### Architecture
 - ✅ Platform plugin using `yoto-nodejs-client` for device management
-- ✅ One bridged accessory per Yoto device, plus optional external SmartSpeaker (`services.smartSpeaker`) and TV (`services.television`) accessories
+- ✅ One bridged accessory per Yoto device, plus optional external TV (`services.television`) and legacy SmartSpeaker (`services.smartSpeaker`) accessories
 - ✅ External accessories use dedicated handlers and are published once per runtime (handlers re-attach if a device reconnects)
 - ✅ Real-time updates via MQTT + periodic HTTP polling fallback
 - ✅ Offline detection and "No Response" status handling
@@ -35,7 +35,7 @@
 - ✅ **Switch (Shortcut)** - One per device shortcut (`services.shortcuts`)
 
 ### External Accessories (Optional)
-- ✅ **SmartSpeaker** - External SmartSpeaker accessory (`services.smartSpeaker`)
+- ✅ **SmartSpeaker (legacy)** - External SmartSpeaker accessory (`services.smartSpeaker`), under **Advanced** in settings. Scenes and automations only; the Home app shows "Controls not available". Point users to the TV accessory.
 - ✅ **Television** - External TV playback accessory with card control and shortcut inputs (`services.television`)
 
 ### Additional Accessories (Optional)
@@ -311,9 +311,9 @@ A StatelessProgrammableSwitch was considered, but those only report presses *to*
 
 ---
 
-### External SmartSpeaker Accessory (Optional)
+### External SmartSpeaker Accessory (Optional, legacy)
 
-Published when `services.smartSpeaker` is enabled. This accessory is separate from the bridged device accessory and requires pairing.
+Published when `services.smartSpeaker` is enabled. Kept for existing setups; the toggle lives under **Advanced** in settings. This accessory is separate from the bridged device accessory and requires pairing.
 
 #### Service: AccessoryInformation (Required)
 
