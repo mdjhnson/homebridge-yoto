@@ -43,6 +43,7 @@ node --test lib/foo.test.js
 - `homebridge-ui/`: the custom settings UI.
   - `server.js` runs in the Homebridge UI process and handles the OAuth start/exchange.
   - `public/client.js` and `public/index.html` run in the browser.
+  - `public/logo.png` is a copy of the root `logo.png` (which the README shows); change both together.
 - **Schema:**
   - `config.schema.json` holds the settings schema and layout.
   - `config.schema.cjs` just re-exports it for typed access (`serviceSchema`).
@@ -96,3 +97,49 @@ node --test lib/foo.test.js
   - It runs `npm version`, pushes the tag, runs `npm publish`, and creates a GitHub release.
 - The default branch is `master`.
 - `PLUGIN_NAME` in `lib/settings.js` must equal the `package.json` `name`. `PLATFORM_NAME` stays `Yoto` for config compatibility.
+
+### Release notes
+
+The workflow's release body is the raw auto-changelog section (merged PRs, then commits). After a release, rewrite it in the style of Mealie's releases (e.g. [v3.28.0](https://github.com/mealie-recipes/mealie/releases/tag/v3.28.0)). The Homebridge UI shows these notes to users when they update, so write for users, not developers.
+
+- Draft the notes, show them to the user, and only then run `gh release edit vX.Y.Z --repo mdjhnson/homebridge-yoto --notes-file <file>`. Keep the draft in the scratchpad.
+- Build it from the PR descriptions and commits since the previous tag (`git log vPrev..vX.Y.Z`), not just the changelog's PR titles.
+- Leave out empty sections. A one-fix patch can be a sentence and a single section.
+
+```md
+One or two sentences on what this release is about.
+
+## ⚠️ Before you update
+- Anything the user must do: sign in again, re-add an accessory, a renamed setting. Omit if nothing.
+
+## 🎉 Highlights
+- A short paragraph per headline change: what it does, where to find it in settings or the Home app, and why it matters.
+
+## ✨ New features
+- Add sleep timer slider (#5)
+
+## 🐛 Bug fixes
+- Fix token refresh failing after a child bridge restart (#5)
+
+## 🧰 Maintenance
+<details>
+<summary>3 changes</summary>
+
+- Tests, CI, docs, CLAUDE.md, refactors
+
+</details>
+
+## ⬆️ Dependency updates
+<details>
+<summary>2 changes</summary>
+
+- Bump yoto-nodejs-client to 1.2.3 (#6)
+
+</details>
+
+**Full changelog:** https://github.com/mdjhnson/homebridge-yoto/compare/vPrev...vX.Y.Z
+```
+
+- One line per change, in the imperative ("Add", "Fix"), with the PR number when there is one; otherwise the short commit hash.
+- Credit outside contributors with `@handle` and add a `## 🙏 New contributors` section for first-timers.
+- Collapse Maintenance and Dependency updates in `<details>`, with the count in the summary.
