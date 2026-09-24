@@ -28,7 +28,7 @@
 - ✅ **ContactSensor (CardSlot)** - Card insertion detection (toggle)
 - ✅ **Switch (CardControl)** - Plays a configured card ID (toggle)
 - ✅ **ContactSensor (DayMode)** - Day/night mode indicator (toggle)
-- ✅ **Switch (SleepTimer)** - Toggle sleep timer (toggle)
+- ✅ **Lightbulb (SleepTimer)** - Sleep timer slider (minutes left)
 - ✅ **Switch (Bluetooth)** - Toggle Bluetooth on/off (toggle)
 - ✅ **Lightbulb (DayMaxVolume)** - Day mode max volume limit (toggle)
 - ✅ **Lightbulb (NightMaxVolume)** - Night mode max volume limit (toggle)
@@ -36,7 +36,7 @@
 
 ### External Accessories (Optional)
 - ✅ **SmartSpeaker (legacy)** - External SmartSpeaker accessory (`services.smartSpeaker`), under **Advanced** in settings. Scenes and automations only; the Home app shows "Controls not available". Point users to the TV accessory.
-- ✅ **Television** - External TV playback accessory with card control and shortcut inputs (`services.television`)
+- ✅ **Television** - External TV playback accessory with card control, shortcut and library card inputs (`services.television`, `services.televisionLibrary`), listed alphabetically via `DisplayOrder` and capped at 90 inputs
 
 ### Additional Accessories (Optional)
 - ✅ **Card Control (All Yotos)** - Separate accessory per card control when `playOnAll` is enabled
@@ -229,15 +229,16 @@ Shows if device is in day mode (vs night mode).
 
 ---
 
-#### Service: Switch (subtype: "SleepTimer")
+#### Service: Lightbulb (subtype: "SleepTimer")
 
-Toggle sleep timer on/off.
+Sleep timer slider. Replaced the earlier Switch.
 
 **Characteristics:**
-- `On` (GET/SET) - Sleep timer active state
+- `On` (GET/SET) - Timer running; on alone reuses the last time (30 minutes at first)
+- `Brightness` (GET/SET) - Time left, `services.sleepTimerMinutesPerPercent` minutes per 1% (default 1)
 
-**Source:** `playback.sleepTimerActive`  
-**Control:** `setSleepTimer(30 * 60)` (on) or `setSleepTimer(0)` (off)
+**Source:** `playback.sleepTimerActive`, `playback.sleepTimerSeconds` (counted down locally between reports)  
+**Control:** `setSleepTimer(percent * minutesPerPercent * 60)`, or `setSleepTimer(0)` (off)
 
 ---
 
@@ -373,7 +374,7 @@ Plays a configured card ID on all online devices when toggled.
 | Switch (Card Control) | ✅ | ✅ | ✅ | `services.cardControls[]` |
 | Switch (Card Control - All Yotos) | ✅ | ✅ | ✅ | `services.cardControls[].playOnAll` |
 | ContactSensor (DayMode) | ✅ | ✅ | ✅ | Toggle |
-| Switch (SleepTimer) | ✅ | ✅ | ✅ | Toggle |
+| Lightbulb (SleepTimer) | ✅ | ✅ | ✅ | Slider |
 | Switch (Bluetooth) | ✅ | ✅ | ✅ | Toggle |
 | Lightbulb (Volume Limits) | ✅ | ✅ | ✅ | Toggle |
 | TemperatureSensor | ❌ | ✅ | ❌ | Toggle + capability |
@@ -398,7 +399,7 @@ Services are categorized by data source and whether they expose `StatusActive`.
 - ContactSensor (Online Status) uses ContactSensorState to show online/offline
 - Switch (Playback) and Lightbulb (Volume) in bridged mode
 - Battery
-- Switch (SleepTimer)
+- Lightbulb (SleepTimer)
 - Switch (Card Control) (per device and All Yotos)
 
 **Config-Based Services** (work offline):
@@ -457,8 +458,8 @@ await deviceModel.pauseCard()
 // Volume control
 await deviceModel.setVolume(10)
 
-// Sleep timer
-await deviceModel.setSleepTimer(30 * 60)
+// Sleep timer (seconds; 0 cancels)
+await deviceModel.setSleepTimer(45 * 60)
 ```
 
 ### Config Update Examples
@@ -498,9 +499,15 @@ await deviceModel.updateConfig({ bluetoothEnabled: true })
 - [ ] Card control switches (per device)
 - [ ] Card control (All Yotos) accessory
 - [ ] Shortcut switches play the right content and rename to card titles
+- [x] TV inputs play library cards, and ActiveIdentifier follows the playing card (Sept 2026)
 - [ ] TV inputs play card controls and shortcuts
+- [x] TV inputs published alphabetically via DisplayOrder (checked over HAP, Sept 2026)
+- [ ] TV inputs appear alphabetically in the Home app itself
+- [x] Family library endpoint returns the expected shape (Sept 2026)
 - [ ] Day mode detection (all devices)
-- [ ] Sleep timer control (all devices)
+- [x] Sleep timer slider sets the chosen minutes (checked over HAP on a Mini, Sept 2026)
+- [x] Sleep timer slider counts down and turns off when the timer ends (Sept 2026)
+- [x] Sleep timer slider follows a timer set or cancelled from another MQTT client, as the Yoto app does, including across a Homebridge restart (Sept 2026)
 - [ ] Bluetooth toggle (all devices)
 - [ ] Volume limit controls (all devices)
 

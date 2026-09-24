@@ -29,17 +29,17 @@ node --test lib/foo.test.js
 - `lib/platform.js`: `YotoPlatform`.
   - Creates the `YotoAccount`, persists refreshed tokens and registers accessories.
   - External accessories (SmartSpeaker, TV) are published once per runtime; a handler is re-attached if the player reconnects.
-  - `getCardTitle()` is a cached card-title lookup.
+  - `getCardTitle()` is a cached card-title lookup. `getLibraryCards()` returns the family library plus Make Your Own cards, cached for 10 minutes.
 - **One handler class per accessory type:**
   - `lib/accessory.js`: the bridged player, with most services.
   - `lib/speaker-accessory.js`: the external SmartSpeaker. It's a legacy option under **Advanced** in settings, because the Home app can't control non-AirPlay speakers; point users to the TV accessory.
-  - `lib/television-accessory.js`: the external TV. Its inputs are "now playing", then card controls, then shortcuts.
+  - `lib/television-accessory.js`: the external TV. Its inputs are "now playing", then card controls, shortcuts and library cards (capped at 90 inputs). `DisplayOrder` lists them alphabetically, and identifiers are hashed from the input subtype so scenes survive library changes.
   - `lib/card-control-accessory.js`: "Play on All Yotos".
 - **Config readers:**
   - `lib/card-controls.js`: card controls, plus the shared `PlayableCard` type.
-  - `lib/service-config.js`: service toggles.
+  - `lib/service-config.js`: service toggles, plus the TV library toggle and the sleep timer minutes per 1%.
   - `lib/shortcuts.js`: parses device shortcuts, names the built-in ones, resolves date placeholders.
-- `lib/utils/`: small pure helpers (volume maths, OAuth/PKCE, token config rewrite, listener tracking, status-scope fallback). Put new testable logic here.
+- `lib/utils/`: small pure helpers (volume and sleep timer maths, OAuth/PKCE, token config rewrite, listener tracking, status-scope fallback, family library fetch, TV input identifiers and display order). Put new testable logic here.
 - `homebridge-ui/`: the custom settings UI.
   - `server.js` runs in the Homebridge UI process and handles the OAuth start/exchange.
   - `public/client.js` and `public/index.html` run in the browser.
@@ -54,6 +54,8 @@ node --test lib/foo.test.js
   - The redirect URI is `http://127.0.0.1:8787/callback`. Nothing listens there: the user pastes the resulting address back into the UI.
   - The PKCE verifier stays in `homebridge-ui/server.js`.
   - Old client ID `Y4HJ8BFq…` (upstream's app) is in `LEGACY_CLIENT_IDS` and is replaced with the default on sign-in.
+- **Refresh with the client ID the tokens were issued to.** Yoto rejects a refresh token sent with another client ID (403 `invalid_grant`, "The client associated with this refresh token … is different"). The settings form can save a stale `clientId` back after signing in, so the platform reads the access token's `azp` claim (`lib/utils/token-client-id.js`) and uses that, falling back to `config.clientId`.
+- **Child bridges can start with stale tokens.** Homebridge hands a child bridge the config it read at startup, and reuses it when the child restarts after its process exits (only a restart from the UI re-reads config.json). After a token refresh that copy holds a rotated refresh token, and Yoto answers `invalid_grant - Unknown or invalid refresh token`; reusing one may also revoke the newer tokens. `useNewerSavedTokens()` in the platform reads config.json at startup and takes newer tokens from it.
 - **Scopes are per app.** `OAUTH_SCOPES` in `lib/settings.js` must match the scopes enabled on the Yoto developer app (`tpc_ot5BY24FLyZoCX9MnykipB`).
   - `openid` and `profile` are not offered.
   - Adding a scope means changing both the code and the dashboard, and existing users must sign in again.
@@ -65,6 +67,10 @@ node --test lib/foo.test.js
 - **Built-in shortcuts** live on system card `3nC80`, with chapters `daily`, `radio-day` and `radio-night`.
   - The card's title lookup returns 403, so they get fixed names.
   - Yoto Daily's track is the placeholder `<yyyymmdd>`, which must be resolved when played (`resolveShortcutKey`).
+- **Family library:** `GET /card/family/library` returns `{ cards: [{ cardId, inFamilyLibrary, reason, card: { title, … } }], subscriptions }` under the existing `family:library:view` scope. It already includes Make Your Own cards (`reason: 'myo-content-add'`). yoto-nodejs-client has no method for it, so `lib/utils/library.js` calls it with `client.token.getAccessToken()`.
+- **Sleep timer:** `setSleepTimer(seconds)` takes any length and works while nothing is playing. `playback.sleepTimerSeconds` is the time left; while a timer runs the player pushes it about every 5 seconds, then sends `sleepTimerActive: false` at 0.
+  - A command takes 1–3 seconds to apply, and the player keeps reporting the old state until then. `syncSleepTimerFromPlayback()` ignores reports that don't match the last command for up to 10 seconds, so the tile doesn't flick back.
+- **HomeKit names** are limited to 64 characters, and some card titles are longer. Card titles also use curly apostrophes (`’`). `sanitizeName()` shortens names at a word break and turns curly quotes into straight ones; route every name through it.
 - **Newer Minis** report `deviceType: 'minie'`. The client marks them unsupported, but they behave like a Mini.
 - **Shortcut changes** emit `configUpdate` with no field name in `changedFields`. Compare `getShortcutsSignature()` instead.
 - **Shared device model:** several accessory handlers use one `YotoDeviceModel`. Register listeners through `ListenerGroup` and never call `removeAllListeners` on the model; that removed other handlers' `error` listeners and could crash Homebridge.
@@ -78,6 +84,8 @@ node --test lib/foo.test.js
 - **Real players:** only with the user's go-ahead.
   - Sign in with the same PKCE helpers as the UI, keep tokens in the session scratchpad (never in the repo), and run Homebridge sandboxed: `node node_modules/homebridge/bin/homebridge.js -D -U <scratch dir> -P .`
   - Homebridge renames its process, so stop it by PID, not with `pkill -f`.
+  - **External accessories share the real ones' identity.** The TV and SmartSpeaker UUIDs (and so their HAP IDs) come from the device ID, so a sandbox with `television` on advertises the same accessories as the user's real Homebridge on the LAN. Keep those runs short, or turn the external accessories off unless you're testing them.
+  - Start the sandbox with `-I` (insecure) to read and write characteristics over HTTP (`GET /accessories`, `PUT /characteristics` with an `Authorization: <pin>` header) without pairing.
 - **Never send commands to a real player** (play, pause, volume, sleep timer, Bluetooth, nightlight) without asking first. Children may be asleep next to it. Reads are fine once the user has agreed to testing.
 
 ## Releases
