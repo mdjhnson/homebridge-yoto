@@ -29,11 +29,11 @@ node --test lib/foo.test.js
 - `lib/platform.js`: `YotoPlatform`.
   - Creates the `YotoAccount`, persists refreshed tokens and registers accessories.
   - External accessories (SmartSpeaker, TV) are published once per runtime; a handler is re-attached if the player reconnects.
-  - `getCardTitle()` is a cached card-title lookup. `getLibraryCards()` returns the family library plus Make Your Own cards, cached for 10 minutes.
+  - `getCardTitle()` is a cached card-title lookup. `getLibraryCards()` returns the family library (which includes Make Your Own cards), cached for 10 minutes. It rejects on failure rather than returning `[]`, so the TV keeps its inputs, and a failure isn't cached.
 - **One handler class per accessory type:**
   - `lib/accessory.js`: the bridged player, with most services.
   - `lib/speaker-accessory.js`: the external SmartSpeaker. It's a legacy option under **Advanced** in settings, because the Home app can't control non-AirPlay speakers; point users to the TV accessory.
-  - `lib/television-accessory.js`: the external TV. Its inputs are "now playing", then card controls, shortcuts and library cards (capped at 90 inputs). `DisplayOrder` lists them alphabetically, and identifiers are hashed from the input subtype so scenes survive library changes.
+  - `lib/television-accessory.js`: the external TV. Its inputs are "now playing", then card controls, shortcuts and library cards (capped at 90 inputs). `DisplayOrder` lists them alphabetically, and identifiers are hashed from the input subtype and kept by inputs that already exist, so scenes survive library changes. Until its first library load, a re-attached handler keeps the library inputs already published.
   - `lib/card-control-accessory.js`: "Play on All Yotos".
 - **Config readers:**
   - `lib/card-controls.js`: card controls, plus the shared `PlayableCard` type.
@@ -67,7 +67,7 @@ node --test lib/foo.test.js
 - **Built-in shortcuts** live on system card `3nC80`, with chapters `daily`, `radio-day` and `radio-night`.
   - The card's title lookup returns 403, so they get fixed names.
   - Yoto Daily's track is the placeholder `<yyyymmdd>`, which must be resolved when played (`resolveShortcutKey`).
-- **Family library:** `GET /card/family/library` returns `{ cards: [{ cardId, inFamilyLibrary, reason, card: { title, … } }], subscriptions }` under the existing `family:library:view` scope. It already includes Make Your Own cards (`reason: 'myo-content-add'`). yoto-nodejs-client has no method for it, so `lib/utils/library.js` calls it with `client.token.getAccessToken()`.
+- **Family library:** `GET /card/family/library` returns `{ cards: [{ cardId, inFamilyLibrary, reason, card: { title, … } }], subscriptions }` under the existing `family:library:view` scope. It already includes Make Your Own cards (`reason: 'myo-content-add'`). yoto-nodejs-client has no method for it, so `lib/utils/library.js` calls it with `client.token.getAccessToken()`, the client's `YOTO_API_URL` and headers, a 30-second timeout, and throws `YotoAPIError` on a bad status.
 - **Sleep timer:** `setSleepTimer(seconds)` takes any length and works while nothing is playing. `playback.sleepTimerSeconds` is the time left; while a timer runs the player pushes it about every 5 seconds, then sends `sleepTimerActive: false` at 0.
   - A command takes 1–3 seconds to apply, and the player keeps reporting the old state until then. `syncSleepTimerFromPlayback()` ignores reports that don't match the last command for up to 10 seconds, so the tile doesn't flick back.
 - **HomeKit names** are limited to 64 characters, and some card titles are longer. Card titles also use curly apostrophes (`’`). `sanitizeName()` shortens names at a word break and turns curly quotes into straight ones; route every name through it.
