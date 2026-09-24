@@ -73,7 +73,13 @@
             "title": "TV Playback Accessory",
             "type": "boolean",
             "default": false,
-            "description": "Publish an external TV-style accessory: play/pause and volume from the iPhone remote, and inputs that play your card controls and shortcuts. Requires pairing and its own network port."
+            "description": "Publish an external TV-style accessory: play/pause and volume from the iPhone remote, and inputs that play your cards, card controls and shortcuts. Requires pairing and its own network port."
+          },
+          "televisionLibrary": {
+            "title": "TV Inputs for Library Cards",
+            "type": "boolean",
+            "default": true,
+            "description": "Add every card in your Yoto library as a TV input, listed alphabetically. HomeKit allows about 90 inputs; if your library is bigger, cards past the limit are left out."
           },
           "battery": {
             "title": "Battery",
@@ -144,7 +150,15 @@
             "title": "Sleep Timer",
             "type": "boolean",
             "default": false,
-            "description": "Expose sleep timer switch."
+            "description": "Expose the sleep timer as a slider. Each 1% is one minute unless changed below; turning it on without a time uses 30 minutes."
+          },
+          "sleepTimerMinutesPerPercent": {
+            "title": "Sleep Timer Minutes per 1%",
+            "type": "number",
+            "default": 1,
+            "minimum": 0.5,
+            "maximum": 10,
+            "description": "How many minutes each 1% on the sleep timer slider adds. 1 gives up to 100 minutes; 2 gives up to 200 minutes."
           },
           "bluetooth": {
             "title": "Bluetooth",
@@ -192,6 +206,12 @@
         },
         "services.playbackControls",
         "services.television",
+        {
+          "key": "services.televisionLibrary",
+          "condition": {
+            "functionBody": "return model.services && model.services.television === true"
+          }
+        },
         "services.volumeLimits",
         "services.battery",
         "services.temperature",
@@ -200,6 +220,12 @@
         "services.nightlight",
         "services.bluetooth",
         "services.sleepTimer",
+        {
+          "key": "services.sleepTimerMinutesPerPercent",
+          "condition": {
+            "functionBody": "return model.services && model.services.sleepTimer === true"
+          }
+        },
         "services.shortcuts",
         {
           "type": "help",
