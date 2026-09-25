@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import homebridgeYoto from './index.js'
+import { Ajv } from 'ajv'
 import { configSchema, serviceSchema } from './config.schema.cjs'
 
 test('exports default function', () => {
@@ -40,28 +41,12 @@ test('every service key in the settings layout exists in the schema', () => {
   }
 })
 
-/**
- * Paths of schema nodes whose `required` isn't an array of property names.
- * @param {unknown} node
- * @param {string} path
- * @param {string[]} found
- * @returns {string[]}
- */
-function findInvalidRequired (node, path = 'schema', found = []) {
-  if (!node || typeof node !== 'object') return found
-  const record = /** @type {Record<string, unknown>} */ (node)
-  if ('required' in record && !Array.isArray(record['required'])) found.push(path)
-  const properties = record['properties']
-  if (properties && typeof properties === 'object') {
-    for (const [key, value] of Object.entries(properties)) findInvalidRequired(value, `${path}.${key}`, found)
-  }
-  if (record['items']) findInvalidRequired(record['items'], `${path}[]`, found)
-  return found
-}
-
-// The Homebridge verification checks reject both of these
-test('schema only uses required arrays at the object level', () => {
-  assert.deepStrictEqual(findInvalidRequired(configSchema.schema), [])
+// The Homebridge verification checks compile the schema with these AJV options
+// and reject it on any error (e.g. `required: true` on a property), and also
+// require a non-empty `name` property.
+test('schema compiles with AJV as the Homebridge verification checks do', () => {
+  const ajv = new Ajv({ strict: false, allErrors: true })
+  assert.doesNotThrow(() => ajv.compile(configSchema.schema))
 })
 
 test('schema has a name property', () => {

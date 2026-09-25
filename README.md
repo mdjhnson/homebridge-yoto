@@ -2,7 +2,7 @@
 
 <img src="https://github.com/homebridge/branding/raw/latest/logos/homebridge-wordmark-logo-vertical.png" width="150">
 
-<img src="https://raw.githubusercontent.com/mdjhnson/homebridge-yoto/master/logo.png" width="100">
+<img src="https://raw.githubusercontent.com/mdjhnson/homebridge-yoto/master/homebridge-ui/public/logo.png" width="100">
 
 </p>
 

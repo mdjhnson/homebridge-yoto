@@ -43,12 +43,12 @@ node --test lib/foo.test.js
 - `homebridge-ui/`: the custom settings UI.
   - `server.js` runs in the Homebridge UI process and handles the OAuth start/exchange.
   - `public/client.js` and `public/index.html` run in the browser.
-  - `public/logo.png` is a copy of the root `logo.png` (which the README shows); change both together.
+  - `public/logo.png` (256×256) is the only copy of the logo. The README links to it on GitHub. The icon on homebridge/plugins is a separate 100×100 upload.
 - **Schema:**
   - `config.schema.json` holds the settings schema and layout.
   - `config.schema.cjs` just re-exports it for typed access (`serviceSchema`).
   - A new service toggle goes in both the schema `properties` and the `layout`.
-  - Homebridge verification checks the schema: `required` must be an array on the object (`"required": ["label", "cardId"]`), never `true`/`false` on a property, and the `name` property must stay. `index.test.js` checks both.
+  - Homebridge verification checks the schema: `required` must be an array on the object (`"required": ["label", "cardId"]`), never `true`/`false` on a property, and the `name` property must stay. `index.test.js` compiles the schema with AJV (as the checks do) and checks for `name`.
 
 ## Yoto API gotchas (verified on real players, Sept 2026)
 
@@ -134,7 +134,7 @@ One or two sentences on what this release is about.
 <details>
 <summary>2 changes</summary>
 
-- Bump yoto-nodejs-client to 1.2.3 (#6)
+- Bump yoto-nodejs-client to 1.2.3 (#NN)
 
 </details>
 

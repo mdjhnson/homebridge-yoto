@@ -11,6 +11,7 @@ import { HomebridgePluginUiServer, RequestError } from '@homebridge/plugin-ui-ut
 import { YotoClient } from 'yoto-nodejs-client'
 import {
   DEFAULT_CLIENT_ID,
+  DEFAULT_NAME,
   LEGACY_CLIENT_IDS,
   OAUTH_REDIRECT_URI,
   OAUTH_SCOPES,
@@ -59,6 +60,7 @@ class YotoUiServer extends HomebridgePluginUiServer {
  * Response from /auth/config endpoint
  * @typedef {Object} AuthConfigResponse
  * @property {string} defaultClientId - The default OAuth client ID
+ * @property {string} defaultName - The default plugin name, filled into config blocks that have none
  * @property {string[]} legacyClientIds - Client IDs that no longer support sign-in
  * @property {string} redirectUri - Redirect URI to register on a custom Yoto app
  */
@@ -70,6 +72,7 @@ class YotoUiServer extends HomebridgePluginUiServer {
 async function getAuthConfig () {
   return {
     defaultClientId: DEFAULT_CLIENT_ID,
+    defaultName: DEFAULT_NAME,
     legacyClientIds: LEGACY_CLIENT_IDS,
     redirectUri: OAUTH_REDIRECT_URI,
   }
