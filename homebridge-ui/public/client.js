@@ -16,6 +16,7 @@ const homebridge = window.homebridge
 /**
  * @typedef {Object} YotoConfig
  * @property {string} [platform] - Platform alias (always "Yoto")
+ * @property {string} [name] - Name used in the Homebridge log
  * @property {string} [clientId] - OAuth client ID (only stored when not the default)
  * @property {string} [refreshToken] - Stored refresh token
  * @property {string} [accessToken] - Stored access token
@@ -154,7 +155,7 @@ async function loadAuthConfig () {
   try {
     pluginConfig = await homebridge.getPluginConfig()
     if (!pluginConfig.length) {
-      pluginConfig.push({ platform: 'Yoto' })
+      pluginConfig.push({ platform: 'Yoto', name: 'Yoto' })
     }
 
     /** @type {AuthConfigResponse} */
@@ -265,7 +266,7 @@ async function finishAuthorization () {
       response: pasted,
     })
 
-    if (!pluginConfig[0]) pluginConfig[0] = { platform: 'Yoto' }
+    if (!pluginConfig[0]) pluginConfig[0] = { platform: 'Yoto', name: 'Yoto' }
     const config = pluginConfig[0]
     config.refreshToken = result.refreshToken
     config.accessToken = result.accessToken

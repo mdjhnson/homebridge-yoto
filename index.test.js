@@ -39,3 +39,31 @@ test('every service key in the settings layout exists in the schema', () => {
     if (name) assert.ok(name in serviceSchema, `layout key ${key} has no schema property`)
   }
 })
+
+/**
+ * Paths of schema nodes whose `required` isn't an array of property names.
+ * @param {unknown} node
+ * @param {string} path
+ * @param {string[]} found
+ * @returns {string[]}
+ */
+function findInvalidRequired (node, path = 'schema', found = []) {
+  if (!node || typeof node !== 'object') return found
+  const record = /** @type {Record<string, unknown>} */ (node)
+  if ('required' in record && !Array.isArray(record['required'])) found.push(path)
+  const properties = record['properties']
+  if (properties && typeof properties === 'object') {
+    for (const [key, value] of Object.entries(properties)) findInvalidRequired(value, `${path}.${key}`, found)
+  }
+  if (record['items']) findInvalidRequired(record['items'], `${path}[]`, found)
+  return found
+}
+
+// The Homebridge verification checks reject both of these
+test('schema only uses required arrays at the object level', () => {
+  assert.deepStrictEqual(findInvalidRequired(configSchema.schema), [])
+})
+
+test('schema has a name property', () => {
+  assert.ok(Object.keys(configSchema.schema.properties.name).length > 0)
+})

@@ -48,6 +48,7 @@ node --test lib/foo.test.js
   - `config.schema.json` holds the settings schema and layout.
   - `config.schema.cjs` just re-exports it for typed access (`serviceSchema`).
   - A new service toggle goes in both the schema `properties` and the `layout`.
+  - Homebridge verification checks the schema: `required` must be an array on the object (`"required": ["label", "cardId"]`), never `true`/`false` on a property, and the `name` property must stay. `index.test.js` checks both.
 
 ## Yoto API gotchas (verified on real players, Sept 2026)
 

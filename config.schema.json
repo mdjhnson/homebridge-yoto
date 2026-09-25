@@ -8,11 +8,16 @@
   "schema": {
     "type": "object",
     "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "default": "Yoto",
+        "description": "Name used for this plugin in the Homebridge log."
+      },
       "clientId": {
         "title": "OAuth Client ID",
         "type": "string",
         "default": "tpc_ot5BY24FLyZoCX9MnykipB",
-        "required": false,
         "description": "OAuth client ID for Yoto API authentication. The default works for most users. Only change if you've created your own OAuth app at yoto.dev.",
         "x-schema-form": {
           "hidden": false
@@ -21,7 +26,6 @@
       "accessToken": {
         "title": "Access Token",
         "type": "string",
-        "required": false,
         "description": "Automatically managed by the authentication flow. Do not edit manually.",
         "x-schema-form": {
           "type": "password"
@@ -30,7 +34,6 @@
       "refreshToken": {
         "title": "Refresh Token",
         "type": "string",
-        "required": false,
         "description": "Automatically managed by the authentication flow. Do not edit manually.",
         "x-schema-form": {
           "type": "password"
@@ -39,7 +42,6 @@
       "tokenExpiresAt": {
         "title": "Token Expiration",
         "type": "number",
-        "required": false,
         "description": "Automatically managed by the authentication flow. Do not edit manually.",
         "x-schema-form": {
           "hidden": true
@@ -50,7 +52,6 @@
         "type": "integer",
         "default": 60000,
         "minimum": 10000,
-        "required": false,
         "description": "How often to poll the Yoto API for device status and config as a fallback to MQTT updates. Defaults to 60000 (1 minute)."
       },
       "services": {
@@ -116,13 +117,11 @@
                 "label": {
                   "title": "Label",
                   "type": "string",
-                  "required": true,
                   "description": "Name shown in HomeKit for this card control."
                 },
                 "cardId": {
                   "title": "Card ID",
                   "type": "string",
-                  "required": true,
                   "description": "The Yoto card ID to play."
                 },
                 "playOnAll": {
@@ -131,7 +130,11 @@
                   "default": false,
                   "description": "Create a separate accessory that plays this card on every Yoto."
                 }
-              }
+              },
+              "required": [
+                "label",
+                "cardId"
+              ]
             }
           },
           "shortcuts": {
@@ -250,6 +253,7 @@
       "expandable": true,
       "expanded": false,
       "items": [
+        "name",
         "httpPollIntervalMs",
         {
           "type": "help",
