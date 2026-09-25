@@ -16,6 +16,7 @@ const homebridge = window.homebridge
 /**
  * @typedef {Object} YotoConfig
  * @property {string} [platform] - Platform alias (always "Yoto")
+ * @property {string} [name] - Name used in the Homebridge log
  * @property {string} [clientId] - OAuth client ID (only stored when not the default)
  * @property {string} [refreshToken] - Stored refresh token
  * @property {string} [accessToken] - Stored access token
@@ -31,6 +32,8 @@ let authorizeUrl = null
 let pluginConfig = []
 /** @type {string | null} */
 let defaultClientId = null
+/** @type {string | null} */
+let defaultName = null
 /** @type {string[]} */
 let legacyClientIds = []
 
@@ -153,14 +156,13 @@ function getErrorMessage (error, fallback) {
 async function loadAuthConfig () {
   try {
     pluginConfig = await homebridge.getPluginConfig()
-    if (!pluginConfig.length) {
-      pluginConfig.push({ platform: 'Yoto' })
-    }
 
     /** @type {AuthConfigResponse} */
     const config = await homebridge.request('/auth/config')
     defaultClientId = config.defaultClientId
+    defaultName = config.defaultName
     legacyClientIds = config.legacyClientIds
+    getPlatformBlock()
 
     const redirectUriDisplay = document.getElementById('redirectUriDisplay')
     if (redirectUriDisplay) redirectUriDisplay.textContent = config.redirectUri
@@ -176,6 +178,18 @@ async function loadAuthConfig () {
   } catch (error) {
     console.error('Failed to load auth config:', error)
   }
+}
+
+/**
+ * The plugin's config block, created if missing. Also fills in the name,
+ * which blocks saved by older versions don't have.
+ * @returns {YotoConfig}
+ */
+function getPlatformBlock () {
+  if (!pluginConfig[0]) pluginConfig[0] = { platform: 'Yoto' }
+  const config = pluginConfig[0]
+  if (!config.name && defaultName) config.name = defaultName
+  return config
 }
 
 /**
@@ -265,8 +279,7 @@ async function finishAuthorization () {
       response: pasted,
     })
 
-    if (!pluginConfig[0]) pluginConfig[0] = { platform: 'Yoto' }
-    const config = pluginConfig[0]
+    const config = getPlatformBlock()
     config.refreshToken = result.refreshToken
     config.accessToken = result.accessToken
     config.tokenExpiresAt = result.tokenExpiresAt
@@ -306,11 +319,10 @@ async function logout () {
   try {
     homebridge.showSpinner()
 
-    if (pluginConfig[0]) {
-      delete pluginConfig[0].refreshToken
-      delete pluginConfig[0].accessToken
-      delete pluginConfig[0].tokenExpiresAt
-    }
+    const config = getPlatformBlock()
+    delete config.refreshToken
+    delete config.accessToken
+    delete config.tokenExpiresAt
 
     await homebridge.updatePluginConfig(pluginConfig)
     await homebridge.savePluginConfig()

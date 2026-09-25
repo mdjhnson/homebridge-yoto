@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import homebridgeYoto from './index.js'
+import { Ajv } from 'ajv'
 import { configSchema, serviceSchema } from './config.schema.cjs'
 
 test('exports default function', () => {
@@ -38,4 +39,16 @@ test('every service key in the settings layout exists in the schema', () => {
     const name = /^services\.([^.[]+)$/.exec(key)?.[1]
     if (name) assert.ok(name in serviceSchema, `layout key ${key} has no schema property`)
   }
+})
+
+// The Homebridge verification checks compile the schema with these AJV options
+// and reject it on any error (e.g. `required: true` on a property), and also
+// require a non-empty `name` property.
+test('schema compiles with AJV as the Homebridge verification checks do', () => {
+  const ajv = new Ajv({ strict: false, allErrors: true })
+  assert.doesNotThrow(() => ajv.compile(configSchema.schema))
+})
+
+test('schema has a name property', () => {
+  assert.ok(Object.keys(configSchema.schema.properties.name).length > 0)
 })
