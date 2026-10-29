@@ -3,16 +3,31 @@ version: 2
 updates:
   - package-ecosystem: "npm"
     directory: "/"
-    # Check the npm registry for updates every day (weekdays)
+    # Check the npm registry for updates once a week
     schedule:
-      interval: "daily"
+      interval: "weekly"
     groups:
       typescript:
         patterns:
           - "typescript"
           - "@types/node"
           - "@voxpelli/tsconfig"
+      # Everything else that isn't a major bump goes in one PR. yoto-nodejs-client
+      # is left out so it always gets its own PR: it's still 0.0.x, so any bump
+      # can break the plugin.
+      minor-and-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "yoto-nodejs-client"
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
