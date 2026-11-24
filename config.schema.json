@@ -179,7 +179,7 @@
             "title": "Native iPhone Now Playing (Experimental)",
             "type": "boolean",
             "default": false,
-            "description": "Show each Yoto in Control Other Speakers & TVs with card artwork, playback navigation and volume controls. Homebridge manages the receiver. Requires Python with venv/pip and Git; dependencies install automatically on first startup."
+            "description": "Show each Yoto in Control Other Speakers & TVs with card artwork, playback navigation and volume controls. Homebridge manages the receiver. Requires Python 3 with venv and pip; dependencies install automatically on first startup. iPhones must enter the pairing PIN from the Native iPhone Controls settings under Advanced."
           }
         }
       },
@@ -187,6 +187,20 @@
         "title": "Native iPhone Controls",
         "type": "object",
         "properties": {
+          "pin": {
+            "title": "Pairing PIN",
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 32,
+            "pattern": "^[\\x21-\\x7E]+$",
+            "description": "Entered on an iPhone the first time it controls a Yoto. Leave blank to have a random 8-digit PIN generated and saved here on the next start. 4 to 32 characters, no spaces."
+          },
+          "allowAnyoneOnNetwork": {
+            "title": "Allow anyone on my network (no PIN)",
+            "type": "boolean",
+            "default": false,
+            "description": "Turn off the PIN. Any phone or device on your network, including guests, can then play, pause, skip and change the volume of the selected Yotos."
+          },
           "address": {
             "title": "LAN address",
             "type": "string",
@@ -197,8 +211,8 @@
             "type": "integer",
             "minimum": 1024,
             "maximum": 65535,
-            "default": 7000,
-            "description": "First receiver TCP port. Each Yoto uses the next port; event/data ports are assigned automatically.",
+            "default": 7100,
+            "description": "First receiver TCP port. Each Yoto uses the next free port; event/data ports are assigned automatically. Avoid 7000, which macOS AirPlay Receiver uses.",
             "x-schema-form": {
               "type": "number"
             }
@@ -305,6 +319,8 @@
             "functionBody": "return model.services && model.services.nativeControls === true"
           },
           "items": [
+            "nativeControls.pin",
+            "nativeControls.allowAnyoneOnNetwork",
             "nativeControls.address",
             {
               "key": "nativeControls.port",

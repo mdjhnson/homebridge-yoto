@@ -19,7 +19,8 @@ from dataclasses import dataclass
 from pyatv.auth.hap_tlv8 import TlvValue, ErrorCode, write_tlv
 from pyatv.auth.hap_session import HAPSession
 from pyatv.auth.hap_srp import hkdf_expand
-from pyatv.protocols.airplay.server_auth import AirPlayServerAuth, generate_keys
+from pyatv.protocols.airplay.server_auth import AirPlayServerAuth, generate_keys, new_server_session
+from pyatv.protocols.airplay.auth.hap_transient import TRANSIENT_PIN
 from pyatv.protocols.airplay.channels import BaseEventChannel, DataStreamChannel, DataStreamMessage
 from pyatv.protocols.mrp import messages, protobuf
 from pyatv.protocols.mrp.protobuf import CommandInfo_pb2 as cmd
@@ -33,6 +34,45 @@ LOG = logging.getLogger("yoto-native-controls")
 # Audio-related discovery bits are hints only; audio SETUP is always rejected.
 FEATURES = sum(1 << bit for bit in (9, 14, 15, 16, 17, 18, 19, 20, 21, 22, 30, 38, 40, 48, 50, 58))
 CLIENT_ID = "org.yoto.prototype"
+# AirPlay status flags: bit 2 (audio cable attached, existing behaviour) and
+# bit 7 (PasswordRequired) when a pairing PIN protects the receiver.
+STATUS_FLAGS_OPEN = 0x4
+STATUS_FLAGS_PIN = 0x4 | 0x80
+PIN_ENV = "YOTO_NATIVE_CONTROLS_PIN"
+
+
+class PairingGuard:
+    """Slow down PIN guessing across every connection to this receiver."""
+    FREE_ATTEMPTS = 5
+    MAX_DELAY = 300
+
+    def __init__(self):
+        self.failures = 0
+        self.blocked_until = 0.0
+
+    def retry_delay(self, now):
+        """Seconds a pairing attempt must still wait, or 0."""
+        return max(0, int(self.blocked_until - now + 0.999))
+
+    def failed(self, now):
+        self.failures += 1
+        if self.failures >= self.FREE_ATTEMPTS:
+            delay = min(self.MAX_DELAY, 2 ** (self.failures - self.FREE_ATTEMPTS + 1))
+            self.blocked_until = now + delay
+
+    def succeeded(self):
+        self.failures = 0
+        self.blocked_until = 0.0
+
+
+PAIRING_GUARD = PairingGuard()
+
+
+def service_label(name, limit=63):
+    """A DNS-SD instance label: no dots, at most `limit` UTF-8 bytes."""
+    label = " ".join(name.replace(".", " ").split()) or "Yoto"
+    encoded = label.encode()[:limit]
+    return encoded.decode(errors="ignore").rstrip() or "Yoto"
 PLAYER_ID = "MediaRemote-DefaultPlayer"
 def demo_artwork():
     """Small generated PNG: fictional card artwork, no external downloads."""
@@ -131,6 +171,7 @@ class BridgePlayback(Playback):
         self.artwork_state = object()
         self.artwork_retry_at = 0
         self.channels = set()
+        self.wake = asyncio.Event()
         self.position_signature = None
         self.position_timestamp = time.time() - 978307200
 
@@ -155,8 +196,12 @@ class BridgePlayback(Playback):
             response.raise_for_status()
         return True
 
-    async def refresh(self):
-        async with self.session.get(self.url + "/state", params={"deviceId": self.device_id}) as response:
+    async def refresh(self, idle=False):
+        params = {"deviceId": self.device_id}
+        if idle:
+            # No iPhone is connected: don't ask the player for fresh events.
+            params["idle"] = "1"
+        async with self.session.get(self.url + "/state", params=params) as response:
             response.raise_for_status()
             state = await response.json()
         if not isinstance(state, dict):
@@ -243,11 +288,14 @@ class BridgePlayback(Playback):
         message.ClearField("uniqueIdentifier")
         return message.SerializeToString(), self.volume
 
+    ACTIVE_POLL_SECONDS = 1
+    IDLE_POLL_SECONDS = 60
+
     async def poll(self):
         while True:
             before = self.state_signature()
             try:
-                await self.refresh()
+                await self.refresh(idle=not self.channels)
             except Exception:
                 if self.state.get("online"):
                     LOG.warning("BRIDGE unavailable; marking player offline")
@@ -256,7 +304,14 @@ class BridgePlayback(Playback):
             if self.state_signature() != before:
                 for channel in tuple(self.channels):
                     channel.publish()
-            await asyncio.sleep(1)
+            # Poll every second while an iPhone is connected; otherwise only keep
+            # online status roughly current. A new connection wakes the loop early.
+            interval = self.ACTIVE_POLL_SECONDS if self.channels else self.IDLE_POLL_SECONDS
+            try:
+                await asyncio.wait_for(self.wake.wait(), timeout=interval)
+            except asyncio.TimeoutError:
+                pass
+            self.wake.clear()
 
 
 class ReceiverDataChannel(DataStreamChannel):
@@ -270,6 +325,7 @@ class ReceiverDataChannel(DataStreamChannel):
         self.owner.data_channels.add(self)
         if isinstance(self.owner.playback, BridgePlayback):
             self.owner.playback.channels.add(self)
+            self.owner.playback.wake.set()
         LOG.info("DATA connected: encrypted MediaRemote channel ready")
 
     def connection_lost(self, exc):
@@ -508,8 +564,12 @@ class ControlProtocol(BasicHttpServer):
 
 
 class Receiver(AirPlayServerAuth):
-    def __init__(self, address, name, model, uid, seed, playback):
+    def __init__(self, address, name, model, uid, seed, playback, pin=None, guard=None):
         super().__init__(name, uid)
+        # pin=None means open access: any client pairs with AirPlay's public
+        # transient PIN. Otherwise clients must know this PIN.
+        self.pin = pin
+        self.guard = guard or PAIRING_GUARD
         self.keys = generate_keys(seed)
         self.address, self.model, self.uid = address, model, uid
         self.playback = playback
@@ -552,14 +612,18 @@ class Receiver(AirPlayServerAuth):
             "acl": "0", "gid": str(uuid.uuid5(uuid.NAMESPACE_OID, self.uid)),
             "psi": str(uuid.uuid5(uuid.NAMESPACE_DNS, self.uid)), "igl": "1", "gcgl": "1",
             "pk": self.keys.auth_pub.hex(), "pi": str(uuid.uuid5(uuid.NAMESPACE_OID, self.uid)),
-            "osvers": "14.7", "flags": "0x4", "srcvers": "550.10", "protovers": "1.1", "vv": "2"}
+            "osvers": "14.7", "flags": hex(self.status_flags), "srcvers": "550.10", "protovers": "1.1", "vv": "2"}
 
     def raop_properties(self):
         properties = self.discovery_properties()
-        return {"am": self.model, "cn": "0,1", "da": "true", "et": "0,1", "pw": "false",
+        return {"am": self.model, "cn": "0,1", "da": "true", "et": "0,1", "pw": "true" if self.pin else "false",
             "ft": properties["features"], "sf": properties["flags"], "pk": properties["pk"],
             "tp": "UDP", "vn": "65537", "vs": "550.10", "md": "0,1,2", "ch": "2",
             "ss": "16", "sr": "44100", "txtvers": "1"}
+
+    @property
+    def status_flags(self):
+        return STATUS_FLAGS_PIN if self.pin else STATUS_FLAGS_OPEN
 
     @staticmethod
     def encode_txt(properties):
@@ -571,7 +635,7 @@ class Receiver(AirPlayServerAuth):
         return {"name": self.name, "model": self.model, "deviceID": self.uid,
             "macAddress": self.uid, "pi": str(uuid.uuid5(uuid.NAMESPACE_OID, self.uid)),
             "psi": str(uuid.uuid5(uuid.NAMESPACE_DNS, self.uid)),
-            "pk": self.keys.auth_pub, "txtAirPlay": txt, "txtRAOP": self.encode_txt(self.raop_properties()), "features": FEATURES, "statusFlags": 4,
+            "pk": self.keys.auth_pub, "txtAirPlay": txt, "txtRAOP": self.encode_txt(self.raop_properties()), "features": FEATURES, "statusFlags": self.status_flags,
             "sourceVersion": "550.10", "protocolVersion": "1.1", "vv": 2,
             "volumeControlType": 3 if isinstance(self.playback, BridgePlayback) else 0, "keepAliveSendStatsAsBody": True, "keepAliveLowPower": True,
             "nameIsFactoryDefault": False, "manufacturer": "Yoto MediaRemote experiment",
@@ -605,11 +669,42 @@ class Receiver(AirPlayServerAuth):
         # ControlProtocol enables encryption only after sending this response.
         return response._replace(protocol=request.protocol, version=request.version, headers=headers)
 
+    def backoff(self, seqno):
+        """Refuse a pairing step while repeated wrong PINs are being slowed down."""
+        delay = self.guard.retry_delay(time.monotonic()) if self.pin else 0
+        if not delay:
+            return None
+        LOG.warning("AUTH pairing refused for %d more seconds after repeated wrong PINs", delay)
+        return write_tlv({TlvValue.SeqNo: seqno, TlvValue.Error: bytes([ErrorCode.BackOff]),
+            TlvValue.BackOff: delay.to_bytes(2, "little")})
+
+    def _m1_setup(self, pairing_data, transient):
+        refused = self.backoff(b"\x02")
+        if refused:
+            self.session = None
+            return refused
+        # The SRP secret is the configured PIN, or AirPlay's public transient PIN
+        # in open-access mode.
+        self.session, self.salt = new_server_session(self.keys, str(self.pin or TRANSIENT_PIN))
+        return write_tlv({TlvValue.SeqNo: b"\x02", TlvValue.Salt: binascii.unhexlify(self.salt),
+            TlvValue.PublicKey: binascii.unhexlify(self.session.public)})
+
     def _m3_setup(self, pairing_data, transient):
         # Unlike pyatv's test receiver, never enable encryption after a bad proof.
+        refused = self.backoff(b"\x04")
+        if refused:
+            return refused
+        if self.session is None:
+            return write_tlv({TlvValue.Error: bytes([ErrorCode.Authentication]), TlvValue.SeqNo: b"\x04"})
         self.session.process(binascii.hexlify(pairing_data[TlvValue.PublicKey]).decode(), self.salt)
         if not self.session.verify_proof(binascii.hexlify(pairing_data[TlvValue.Proof])):
+            if self.pin:
+                self.guard.failed(time.monotonic())
+                LOG.warning("AUTH wrong pairing PIN from peer=%s (%d failed attempts)",
+                    self.control.peer if self.control else "unknown", self.guard.failures)
             return write_tlv({TlvValue.Error: bytes([ErrorCode.Authentication]), TlvValue.SeqNo: b"\x04"})
+        if self.pin:
+            self.guard.succeeded()
         self.shared_key = binascii.unhexlify(self.session.key)
         self.enable_encryption(
             hkdf_expand("Control-Salt", "Control-Read-Encryption-Key", self.shared_key),
@@ -720,6 +815,13 @@ class Receiver(AirPlayServerAuth):
 
 async def run(args):
     address = str(ipaddress.IPv4Address(args.address))
+    pin = os.environ.get(PIN_ENV, "") or None
+    if pin is None and not args.open_access:
+        raise ValueError(f"Set {PIN_ENV} to a pairing PIN, or pass --open-access to let anyone on the network pair")
+    if pin is not None and not (4 <= len(pin) <= 32 and all(0x21 <= ord(c) <= 0x7E for c in pin)):
+        raise ValueError("Pairing PIN must be 4 to 32 printable characters without spaces")
+    if pin is not None and args.open_access:
+        raise ValueError("Use either a pairing PIN or --open-access, not both")
     uid = "02:" + ":".join(f"{b:02X}" for b in uuid.uuid4().bytes[:5])
     seed = uuid.uuid4().bytes + uuid.uuid4().bytes
     playback = Playback()
@@ -745,7 +847,7 @@ async def run(args):
     owners = set()
 
     def factory():
-        owner = Receiver(address, args.name, args.model, uid, seed, playback)
+        owner = Receiver(address, args.name, args.model, uid, seed, playback, pin)
         owners.add(owner)
         owner.on_close = lambda: owners.discard(owner)
         return ControlProtocol(owner)
@@ -753,12 +855,13 @@ async def run(args):
     server = await asyncio.get_running_loop().create_server(factory, address, args.port)
     port = server.sockets[0].getsockname()[1]
     zc = AsyncZeroconf(interfaces=[address])
-    identity = Receiver(address, args.name, args.model, uid, seed, playback)
+    identity = Receiver(address, args.name, args.model, uid, seed, playback, pin)
     hostname = "yoto-prototype-" + uid.replace(":", "").lower() + ".local."
-    services = [ServiceInfo("_airplay._tcp.local.", args.name + "._airplay._tcp.local.",
+    raop_prefix = uid.replace(":", "") + "@"
+    services = [ServiceInfo("_airplay._tcp.local.", service_label(args.name) + "._airplay._tcp.local.",
         addresses=[socket.inet_aton(address)], port=port,
         properties=identity.discovery_properties(), server=hostname),
-        ServiceInfo("_raop._tcp.local.", uid.replace(":", "") + "@" + args.name + "._raop._tcp.local.",
+        ServiceInfo("_raop._tcp.local.", raop_prefix + service_label(args.name, 63 - len(raop_prefix)) + "._raop._tcp.local.",
         addresses=[socket.inet_aton(address)], port=port,
         properties=identity.raop_properties(), server=hostname)]
     stop = asyncio.Event()
@@ -767,8 +870,10 @@ async def run(args):
         loop.add_signal_handler(sig, stop.set)
     try:
         for service in services:
-            await zc.async_register_service(service)
-        LOG.info("READY %s %s:%d model=%s services=airplay,raop mode=%s", args.name, address, port, args.model, "Yoto bridge" if args.bridge_url else "fictional playback")
+            # Two players with the same name must not stop each other starting.
+            await zc.async_register_service(service, allow_name_change=True)
+        LOG.info("READY %s %s:%d model=%s services=airplay,raop mode=%s access=%s", args.name, address, port,
+            args.model, "Yoto bridge" if args.bridge_url else "fictional playback", "PIN" if pin else "open")
         await stop.wait()
     finally:
         if poll_task:
@@ -789,11 +894,14 @@ async def run(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--address", required=True, help="LAN IPv4 address of this machine")
-    parser.add_argument("--port", type=int, default=7000)
+    parser.add_argument("--port", type=int, default=7100, help="Control port (macOS AirPlay Receiver already uses 7000)")
     parser.add_argument("--name", help="Display name (defaults to selected Yoto name in bridge mode)")
     parser.add_argument("--bridge-url", help="Opt-in Homebridge MediaRemote bridge URL")
     parser.add_argument("--device-id", help="Yoto device ID selected from the bridge")
+    parser.add_argument("--open-access", action="store_true",
+        help=f"Let any client on the network pair with AirPlay's public transient PIN. Without it, {PIN_ENV} must hold a PIN.")
     parser.add_argument("--model", default="YotoPrototype", help="Experimental identity: YotoPrototype, AudioAccessory5,1 or AppleTV6,2")
     arguments = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+    # Homebridge reads the level prefix to surface warnings and errors.
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     asyncio.run(run(arguments))

@@ -2,7 +2,7 @@
 import asyncio
 import unittest
 
-from receiver import ControlProtocol, Playback, Receiver, playback_timestamp
+from receiver import ControlProtocol, PairingGuard, Playback, Receiver, playback_timestamp, service_label
 from pyatv.auth.hap_pairing import TRANSIENT_CREDENTIALS
 from pyatv.protocols.airplay.ap2_session import AP2Session
 from pyatv.protocols.mrp import messages, protobuf
@@ -246,6 +246,137 @@ class RemoteSessionTest(unittest.IsolatedAsyncioTestCase):
         response = await self.session.connection.send_and_receive("SETUP", "/test", protocol="RTSP/1.0",
             body=plistlib.dumps({"streams": [{"type": 96}]}, fmt=plistlib.FMT_BINARY), allow_error=True)
         self.assertEqual(response.code, 501)
+
+
+async def pair(port, pin):
+    """Run transient pair-setup M1/M3 with `pin`; return the M4 TLV values."""
+    from pyatv.auth.hap_tlv8 import TlvValue, read_tlv, write_tlv
+    from pyatv.auth.hap_srp import SRPAuthHandler
+    from pyatv.support.http import http_connect
+    connection = await http_connect("127.0.0.1", port)
+    try:
+        headers = {"X-Apple-HKP": "4"}
+        response = await connection.post("/pair-setup", headers=headers,
+            body=write_tlv({TlvValue.SeqNo: b"\x01", TlvValue.Method: b"\0"}))
+        values = read_tlv(response.body)
+        if TlvValue.Error in values:
+            return values
+        srp = SRPAuthHandler()
+        srp.initialize()
+        srp.step1(pin)
+        public_key, proof = srp.step2(values[TlvValue.PublicKey], values[TlvValue.Salt])
+        response = await connection.post("/pair-setup", headers=headers,
+            body=write_tlv({TlvValue.SeqNo: b"\x03", TlvValue.PublicKey: public_key, TlvValue.Proof: proof}))
+        return read_tlv(response.body)
+    finally:
+        connection.close()
+
+
+class PinPairingTest(unittest.IsolatedAsyncioTestCase):
+    PIN = "24681357"
+
+    async def asyncSetUp(self):
+        self.owners = []
+        self.guard = PairingGuard()
+        def factory():
+            owner = Receiver("127.0.0.1", "PIN receiver", "YotoPrototype",
+                "02:00:00:00:00:02", bytes(range(32)), Playback(), self.PIN, self.guard)
+            self.owners.append(owner)
+            return ControlProtocol(owner)
+        self.server = await asyncio.get_running_loop().create_server(factory, "127.0.0.1", 0)
+        self.port = self.server.sockets[0].getsockname()[1]
+
+    async def asyncTearDown(self):
+        self.server.close()
+        await self.server.wait_closed()
+        for owner in self.owners:
+            owner.close()
+            if owner.control.transport:
+                owner.control.transport.close()
+        await asyncio.sleep(0)
+
+    async def test_pin_is_required_and_advertised(self):
+        from pyatv.auth.hap_tlv8 import TlvValue
+        values = await pair(self.port, 3939)
+        self.assertIn(TlvValue.Error, values)
+        self.assertIsNone(self.owners[-1].shared_key)
+        values = await pair(self.port, self.PIN)
+        self.assertNotIn(TlvValue.Error, values)
+        self.assertEqual(len(values[TlvValue.Proof]), 64)
+        self.assertIsNotNone(self.owners[-1].shared_key)
+        self.assertEqual(self.guard.failures, 0)
+        owner = self.owners[-1]
+        self.assertEqual(owner.discovery_properties()["flags"], "0x84")
+        self.assertEqual(owner.raop_properties()["pw"], "true")
+        self.assertEqual(owner.info()["statusFlags"], 0x84)
+
+    async def test_repeated_wrong_pins_back_off(self):
+        from pyatv.auth.hap_tlv8 import ErrorCode, TlvValue
+        for _ in range(PairingGuard.FREE_ATTEMPTS):
+            values = await pair(self.port, "00000000")
+            self.assertEqual(values[TlvValue.Error], bytes([ErrorCode.Authentication]))
+        # Even the right PIN is refused while backing off.
+        values = await pair(self.port, self.PIN)
+        self.assertEqual(values[TlvValue.Error], bytes([ErrorCode.BackOff]))
+        self.assertGreater(int.from_bytes(values[TlvValue.BackOff], "little"), 0)
+        self.guard.blocked_until = 0
+        values = await pair(self.port, self.PIN)
+        self.assertNotIn(TlvValue.Error, values)
+        self.assertEqual(self.guard.failures, 0)
+
+
+class IdlePollingTest(unittest.IsolatedAsyncioTestCase):
+    async def test_polls_slowly_and_marks_idle_until_an_iphone_connects(self):
+        from receiver import BridgePlayback
+        playback = BridgePlayback(None, "http://bridge", "device-one")
+        playback.IDLE_POLL_SECONDS = 30
+        seen = []
+        async def refresh(idle=False):
+            seen.append(idle)
+            if len(seen) == 2:
+                raise asyncio.CancelledError
+        playback.refresh = refresh
+        task = asyncio.create_task(playback.poll())
+        await asyncio.sleep(0.05)
+        self.assertEqual(seen, [True])  # idle, now waiting up to 30 seconds
+        playback.channels.add(object())
+        playback.wake.set()  # what a new data channel does
+        with self.assertRaises(asyncio.CancelledError):
+            await asyncio.wait_for(task, 1)
+        self.assertEqual(seen, [True, False])
+
+
+class OpenAccessTest(unittest.TestCase):
+    def test_open_receiver_advertises_no_password(self):
+        owner = Receiver("127.0.0.1", "Open", "YotoPrototype", "02:00:00:00:00:03", bytes(range(32)), Playback())
+        self.assertEqual(owner.discovery_properties()["flags"], "0x4")
+        self.assertEqual(owner.raop_properties()["pw"], "false")
+
+
+class PairingGuardTest(unittest.TestCase):
+    def test_delay_doubles_and_is_capped(self):
+        guard = PairingGuard()
+        for _ in range(PairingGuard.FREE_ATTEMPTS - 1):
+            guard.failed(100)
+        self.assertEqual(guard.retry_delay(100), 0)
+        guard.failed(100)
+        self.assertEqual(guard.retry_delay(100), 2)
+        guard.failed(100)
+        self.assertEqual(guard.retry_delay(100), 4)
+        for _ in range(20):
+            guard.failed(100)
+        self.assertEqual(guard.retry_delay(100), PairingGuard.MAX_DELAY)
+        guard.succeeded()
+        self.assertEqual(guard.retry_delay(100), 0)
+
+
+class ServiceLabelTest(unittest.TestCase):
+    def test_labels_drop_dots_and_fit_63_bytes(self):
+        self.assertEqual(service_label("Yoto Mini v2.1"), "Yoto Mini v2 1")
+        self.assertEqual(service_label("..."), "Yoto")
+        long = service_label("é" * 40)
+        self.assertLessEqual(len(long.encode()), 63)
+        self.assertEqual(long, "é" * 31)
 
 
 if __name__ == "__main__":
