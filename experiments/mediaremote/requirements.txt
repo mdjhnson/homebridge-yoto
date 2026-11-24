@@ -4,7 +4,7 @@ pyatv @ https://github.com/postlund/pyatv/archive/b277a4c8222ecdcbaab8a24e3e713c
 # Unpinned installs break: srptools 2.x changed the SRPServerSession signature.
 aiohttp==3.14.5  # pyatv tests 3.13.5; 3.14.4+ fixes GHSA advisories flagged by dependency review
 async-timeout==5.0.1;python_version<'3.11'
-cryptography==49.0.0
+cryptography==50.0.2  # pyatv tests 49.0.0; 50.0.0+ fixes GHSA-g6cj-pr64-35w5
 chacha20poly1305-reuseable==0.13.2
 ifaddr==0.2.0
 miniaudio==1.71
