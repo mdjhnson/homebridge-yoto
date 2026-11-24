@@ -16,16 +16,21 @@ Use Python 3.12 with `venv` and `pip`. Connect the machine and iPhone to the sam
 `ipconfig getifaddr en0` usually shows it).
 
 ```sh
-git clone --branch research/ios-now-playing https://github.com/JamieKeene/homebridge-yoto.git
+git clone https://github.com/mdjhnson/homebridge-yoto.git
 cd homebridge-yoto/experiments/mediaremote
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/python receiver.py --address 192.168.1.100
+YOTO_NATIVE_CONTROLS_PIN=24681357 .venv/bin/python receiver.py --address 192.168.1.100
 ```
 
+The iPhone asks for the PIN when it first connects. To let any client on the LAN
+pair without one (AirPlay's public transient PIN), pass `--open-access` instead of
+setting `YOTO_NATIVE_CONTROLS_PIN`. The receiver refuses to start with neither.
+
 Allow Python incoming LAN connections if macOS asks. Stop with Ctrl-C. The service
-uses TCP 7000, ephemeral TCP ports for event/data channels, and multicast DNS on
-UDP 5353. Port 7000 can be changed with `--port`. Identity is regenerated on each
+uses TCP 7100, ephemeral TCP ports for event/data channels, and multicast DNS on
+UDP 5353. Port 7100 can be changed with `--port` (avoid 7000, which macOS AirPlay
+Receiver uses). Identity is regenerated on each
 restart to avoid retaining experimental pairing state.
 
 ## Run on Unraid with Docker
@@ -35,6 +40,7 @@ From the repository root:
 ```sh
 docker build -t yoto-mediaremote-prototype experiments/mediaremote
 docker run --rm --name yoto-mediaremote-prototype --network host \
+  -e YOTO_NATIVE_CONTROLS_PIN=24681357 \
   yoto-mediaremote-prototype --address 192.168.1.100
 ```
 
@@ -101,7 +107,7 @@ response. Stop the fictional receiver, then start bridge mode:
 
 ```sh
 docker run --rm --name yoto-mediaremote-prototype --network host \
-  -e YOTO_MEDIAREMOTE_TOKEN \
+  -e YOTO_MEDIAREMOTE_TOKEN -e YOTO_NATIVE_CONTROLS_PIN \
   yoto-mediaremote-prototype --address 192.0.2.10 \
   --model AudioAccessory5,1 --bridge-url http://192.0.2.10:9220 \
   --device-id YOUR_YOTO_DEVICE_ID
@@ -152,7 +158,9 @@ accessories continue using the same account.
 
 - `_airplay._tcp` and `_raop._tcp` discovery and `/info` with matching TXT data
   and experimental receiver-format/capability hints. Audio remains rejected.
-- Transient SRP pairing and encrypted control/event/data channels.
+- Transient SRP pairing with a pairing PIN (advertised as password-required), or
+  AirPlay's public transient PIN with `--open-access`; repeated wrong PINs back off
+  up to 5 minutes. Encrypted control/event/data channels.
 - Remote-only RTSP SETUP, RECORD, feedback, and teardown.
 - Stream type 130 carrying length-prefixed MediaRemote protobuf messages.
 - Device information, subscription response, playback queue, generated fictional
@@ -168,10 +176,10 @@ persistent pairing. The advertised audio-related feature bits are experimental
 discovery hints; they do not signify working audio reception. An iPhone insisting
 on persistent pairing is a useful negative result, not something this implements.
 
-Transient pairing allows any client on the trusted LAN to control the selected player (fictional by default, real in bridge mode);
-there is no user access-control list. It is a short-lived protocol experiment,
-not a production server. Do not expose it beyond your LAN. No pairing secrets are
-logged at the configured INFO level.
+Any client that knows the pairing PIN can control the selected player (fictional by
+default, real in bridge mode); with `--open-access`, any client on the LAN can. There
+is no per-user access-control list. Do not expose it beyond your LAN. The PIN and
+other pairing secrets are never logged.
 
 ## Validate locally
 
@@ -184,7 +192,8 @@ and offline rejection with fake Yoto devices. No physical-player commands run.
 
 The tests use loopback and real pyatv transient pairing to establish encrypted
 remote-only channels, inspect metadata/artwork, pause/toggle/advance chapters,
-reject unsupported commands/audio, and reject an invalid pairing proof.
+reject unsupported commands/audio, reject an invalid pairing proof, require the
+configured PIN, and back off after repeated wrong PINs.
 
 ## References and dependency
 
@@ -193,4 +202,5 @@ reject unsupported commands/audio, and reject an invalid pairing proof.
 - [pyatv simulated MRP receiver](https://github.com/postlund/pyatv/blob/b277a4c8222ecdcbaab8a24e3e713ca44765adb4/tests/fake_device/mrp.py)
 
 The pyatv dependency is installed from an archive pinned to the inspected revision because this uses
-internal protocol APIs. Its MIT license is supplied by the installed dependency.
+internal protocol APIs. Its dependencies are pinned to the versions pyatv tests at that revision;
+unpinned installs break (srptools 2.x changed its API). Its MIT license is supplied by the installed dependency.

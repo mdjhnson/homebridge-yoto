@@ -48,9 +48,20 @@ image or persistent startup setup so recreating it does not remove them. The
 plugin does not install system packages or require Homebridge to run as root.
 Linux and macOS are supported; Windows is not supported for this feature.
 
+**Pairing PIN.** The first start generates a random 8-digit **Pairing PIN** and saves
+it under **Advanced → Native iPhone Controls** (the log says when it does, but never
+prints the PIN). Your iPhone asks for it the first time it controls a Yoto; change it
+there at any time (4–32 characters, no spaces) and restart. Repeated wrong guesses
+are slowed down. If you want any phone on your network, guests included, to control
+the Yotos without a PIN, turn on **Allow anyone on my network (no PIN)**.
+
+Restricting control to people in your Apple Home isn't possible: that needs the
+receiver to be a HomeKit-certified AirPlay speaker, which this is not.
+
 Under **Advanced → Native iPhone Controls**, optionally select player names (empty
 means all), override the Python executable, or choose the first receiver port
-(default 7000, followed by one port per player). The LAN address is detected when
+(default 7100, followed by the next free port per player; avoid 7000, which macOS
+AirPlay Receiver uses). Players with the same name get a short device ID suffix. The LAN address is detected when
 there is one external IPv4 interface. On Unraid, enter the Homebridge host's LAN IP
 if there are multiple interfaces. Homebridge Docker must use **host networking**
 for multicast discovery and the dynamically allocated event/data ports.
@@ -62,14 +73,15 @@ For JSON configuration, add these fields to the existing Yoto platform entry:
   "nativeControls": true
 },
 "nativeControls": {
+  "pin": "24681357",
   "address": "192.0.2.10",
-  "port": 7000
+  "port": 7100
 }
 ```
 
 Merge `nativeControls` into your existing `services` object; keep the other service
-settings. The separate `nativeControls` object is optional unless address detection
-needs an override. Turn the switch off and restart to remove the receivers.
+settings. The separate `nativeControls` object is optional: leave out `pin` to have one
+generated, and add `"allowAnyoneOnNetwork": true` only if you want no PIN at all. Turn the switch off and restart to remove the receivers.
 
 This remains experimental. Play/pause, volume, artwork, and previous/next have
 been tested with physical Yoto players and an iPhone. Integration tests cover
@@ -79,8 +91,9 @@ reporting jitter; long-session and card removal/reinsertion behaviour still need
 broader testing. Seeking, audio reception, and persistent pairing are not implemented.
 Previous/next are disabled when card navigation metadata is unavailable or no
 adjacent track exists. Interactive cards do not expose linear navigation.
-The AirPlay control endpoint permits clients on your trusted LAN to control the
-selected Yotos; do not expose these ports to the internet.
+Anyone who knows the pairing PIN (or anyone on your network, if **Allow anyone on my
+network** is on) can play, pause, skip and change the volume of the selected Yotos, up
+to their maximum volume limit. Do not expose these ports to the internet.
 
 ## Install
 
