@@ -14,6 +14,7 @@
 
 <span align="center">
 
+[![verified-by-homebridge](https://img.shields.io/badge/homebridge-verified-blueviolet?color=%23491F59&style=flat)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
 [![latest version](https://img.shields.io/npm/v/@mdjhnson/homebridge-yoto.svg)](https://www.npmjs.com/package/@mdjhnson/homebridge-yoto)
 [![Actions Status](https://github.com/mdjhnson/homebridge-yoto/workflows/tests/badge.svg)](https://github.com/mdjhnson/homebridge-yoto/actions)
 ![Types in JS](https://img.shields.io/badge/types_in_js-yes-brightgreen)

@@ -96,6 +96,13 @@ node --test lib/foo.test.js
   - Start the sandbox with `-I` (insecure) to read and write characteristics over HTTP (`GET /accessories`, `PUT /characteristics` with an `Authorization: <pin>` header) without pairing.
 - **Never send commands to a real player** (play, pause, volume, sleep timer, Bluetooth, nightlight) without asking first. Children may be asleep next to it. Reads are fine once the user has agreed to testing.
 
+## Dependencies and security
+
+- **Dependabot** (`.github/dependabot.yml`) checks weekly. Minor and patch npm bumps come grouped in one PR; `yoto-nodejs-client` always gets its own, since any 0.0.x bump can break the plugin. GitHub Actions updates are merged automatically once tests pass (`automerge` in `tests.yml`); npm updates are not.
+- **Repo settings, not files:** Dependabot alerts and security updates, CodeQL default setup and private vulnerability reporting (`SECURITY.md` points to it). The repo is a fork, and GitHub turns these off on forks by default.
+- **Dependency review** (`.github/workflows/dependency-review.yml`) fails a PR that adds a dependency with a moderate or worse advisory, or a GPL/AGPL/SSPL license.
+- Homebridge verification checks for known vulnerabilities in dependencies, so don't leave a Dependabot alert open.
+
 ## Releases
 
 - Don't edit `CHANGELOG.md` by hand; `npm version` regenerates it with auto-changelog.

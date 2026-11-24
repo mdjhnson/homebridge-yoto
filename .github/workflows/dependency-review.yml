@@ -1,0 +1,19 @@
+name: dependency review
+
+on: [pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    # Fail a PR that adds a dependency with a known vulnerability, or one under
+    # a copyleft license that can't ship in an MIT package. The report is in
+    # the job summary.
+    - uses: actions/dependency-review-action@v5
+      with:
+        fail-on-severity: moderate
+        deny-licenses: GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later, SSPL-1.0
