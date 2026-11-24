@@ -2,7 +2,7 @@
 pyatv @ https://github.com/postlund/pyatv/archive/b277a4c8222ecdcbaab8a24e3e713ca44765adb4.zip
 # pyatv's own tested dependency pins at that revision (requirements/requirements.txt).
 # Unpinned installs break: srptools 2.x changed the SRPServerSession signature.
-aiohttp==3.13.5
+aiohttp==3.14.5  # pyatv tests 3.13.5; 3.14.4+ fixes GHSA advisories flagged by dependency review
 async-timeout==5.0.1;python_version<'3.11'
 cryptography==49.0.0
 chacha20poly1305-reuseable==0.13.2
