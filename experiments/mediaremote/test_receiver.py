@@ -2,7 +2,7 @@
 import asyncio
 import unittest
 
-from receiver import ControlProtocol, PairingGuard, Playback, Receiver, playback_timestamp, service_label
+from receiver import ControlProtocol, PairingGuard, Playback, Receiver, playback_timestamp, port_range, service_label
 from pyatv.auth.hap_pairing import TRANSIENT_CREDENTIALS
 from pyatv.protocols.airplay.ap2_session import AP2Session
 from pyatv.protocols.mrp import messages, protobuf
@@ -344,6 +344,41 @@ class IdlePollingTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await asyncio.wait_for(task, 1)
         self.assertEqual(seen, [True, False])
+
+
+class ChannelPortRangeTest(unittest.IsolatedAsyncioTestCase):
+    async def test_channels_bind_inside_the_range_and_skip_busy_ports(self):
+        import socket
+        # Find two adjacent free ports, then occupy the first.
+        for _ in range(50):
+            probe = socket.socket()
+            probe.bind(("127.0.0.1", 0))
+            first = probe.getsockname()[1]
+            probe.close()
+            if first < 65000:
+                break
+        busy = socket.socket()
+        busy.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        busy.bind(("127.0.0.1", first))
+        busy.listen()
+        owner = Receiver("127.0.0.1", "Range", "YotoPrototype", "02:00:00:00:00:04", bytes(range(32)),
+            Playback(), channel_ports=(first, first + 1))
+        try:
+            server = await owner.bind_channel(asyncio.Protocol)
+            self.assertEqual(server.sockets[0].getsockname()[1], first + 1)
+            with self.assertRaises(OSError):
+                await owner.bind_channel(asyncio.Protocol)
+            server.close()
+            await server.wait_closed()
+        finally:
+            busy.close()
+
+    def test_port_range_argument(self):
+        import argparse
+        self.assertEqual(port_range("7100-7199"), (7100, 7199))
+        for bad in ("7100", "7199-7100", "0-10", "a-b", "7100-70000"):
+            with self.assertRaises(argparse.ArgumentTypeError):
+                port_range(bad)
 
 
 class OpenAccessTest(unittest.TestCase):

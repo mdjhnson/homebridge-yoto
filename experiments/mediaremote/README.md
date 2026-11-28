@@ -28,8 +28,8 @@ pair without one (AirPlay's public transient PIN), pass `--open-access` instead 
 setting `YOTO_NATIVE_CONTROLS_PIN`. The receiver refuses to start with neither.
 
 Allow Python incoming LAN connections if macOS asks. Stop with Ctrl-C. The service
-uses TCP 7100, ephemeral TCP ports for event/data channels, and multicast DNS on
-UDP 5353. Port 7100 can be changed with `--port` (avoid 7000, which macOS AirPlay
+uses TCP 7100, TCP ports for event/data channels (any free port, or a fixed range
+with `--channel-ports 7100-7199` for firewalls), and multicast DNS on UDP 5353. Port 7100 can be changed with `--port` (avoid 7000, which macOS AirPlay
 Receiver uses). Identity is regenerated on each
 restart to avoid retaining experimental pairing state.
 

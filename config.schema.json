@@ -212,7 +212,17 @@
             "minimum": 1024,
             "maximum": 65535,
             "default": 7100,
-            "description": "First receiver TCP port. Each Yoto uses the next free port; event/data ports are assigned automatically. Avoid 7000, which macOS AirPlay Receiver uses.",
+            "description": "Start of the TCP port range native controls use: one port per Yoto, plus two per connected iPhone. If this host runs a firewall, allow First port to Last port from your home network. Avoid 7000, which macOS AirPlay Receiver uses.",
+            "x-schema-form": {
+              "type": "number"
+            }
+          },
+          "lastPort": {
+            "title": "Last port",
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535,
+            "description": "End of the port range. Leave blank for First port + 99.",
             "x-schema-form": {
               "type": "number"
             }
@@ -324,6 +334,10 @@
             "nativeControls.address",
             {
               "key": "nativeControls.port",
+              "type": "number"
+            },
+            {
+              "key": "nativeControls.lastPort",
               "type": "number"
             },
             "nativeControls.pythonPath",

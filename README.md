@@ -64,9 +64,16 @@ Restricting control to people in your Apple Home isn't possible: that needs the
 receiver to be a HomeKit-certified AirPlay speaker, which this is not.
 
 Under **Advanced → Native iPhone Controls**, optionally select player names (empty
-means all), override the Python executable, or choose the first receiver port
-(default 7100, followed by the next free port per player; avoid 7000, which macOS
-AirPlay Receiver uses). Players with the same name get a short device ID suffix. The LAN address is detected
+means all), override the Python executable, or change the port range. Players with
+the same name get a short device ID suffix.
+
+**Ports and firewalls.** Native controls use TCP ports **First port** to **Last port**
+(default 7100–7199): one per player, plus two for each connected iPhone. The startup
+log shows the range. If the Homebridge host runs a firewall, allow that range from
+your home network, for example `sudo ufw allow 7100:7199/tcp`; if you already allow
+a range for Homebridge, you can point First and Last port at an unused part of it
+instead. Avoid 7000, which macOS AirPlay Receiver uses. A blocked range shows up on
+the iPhone as "Unable to connect" without a PIN prompt. The LAN address is detected
 automatically: container, VM and VPN interfaces (such as `docker0`, `br-…` and
 `tailscale0`) are ignored, and when the host is on the network more than once (for
 example Ethernet and Wi-Fi) the interface with the default route is used. If it still
@@ -83,7 +90,8 @@ For JSON configuration, add these fields to the existing Yoto platform entry:
 "nativeControls": {
   "pin": "24681357",
   "address": "192.0.2.10",
-  "port": 7100
+  "port": 7100,
+  "lastPort": 7199
 }
 ```
 

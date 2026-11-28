@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 import aiohttp
 import argparse
 import binascii
+import errno
 import struct
 import zlib
 import asyncio
@@ -66,6 +67,17 @@ class PairingGuard:
 
 
 PAIRING_GUARD = PairingGuard()
+
+
+def port_range(value):
+    """Parse FIRST-LAST into a (first, last) tuple of TCP ports."""
+    try:
+        first, last = (int(part) for part in value.split("-", 1))
+    except ValueError:
+        raise argparse.ArgumentTypeError("expected FIRST-LAST, for example 7100-7199") from None
+    if not 1 <= first <= last <= 65535:
+        raise argparse.ArgumentTypeError("ports must satisfy 1 <= FIRST <= LAST <= 65535")
+    return first, last
 
 
 def service_label(name, limit=63):
@@ -564,8 +576,11 @@ class ControlProtocol(BasicHttpServer):
 
 
 class Receiver(AirPlayServerAuth):
-    def __init__(self, address, name, model, uid, seed, playback, pin=None, guard=None):
+    def __init__(self, address, name, model, uid, seed, playback, pin=None, guard=None, channel_ports=None):
         super().__init__(name, uid)
+        # (first, last) port range for per-session event/data channels, so a
+        # firewall needs only one known range open. None: any free port.
+        self.channel_ports = channel_ports
         # pin=None means open access: any client pairs with AirPlay's public
         # transient PIN. Otherwise clients must know this PIN.
         self.pin = pin
@@ -719,8 +734,23 @@ class Receiver(AirPlayServerAuth):
     def enable_encryption(self, output_key, input_key):
         self.control.pending_keys = (output_key, input_key)
 
+    async def bind_channel(self, factory):
+        """Listen for a session channel, inside the configured port range if any."""
+        loop = asyncio.get_running_loop()
+        if not self.channel_ports:
+            return await loop.create_server(factory, self.address, 0)
+        first, last = self.channel_ports
+        for port in range(first, last + 1):
+            try:
+                return await loop.create_server(factory, self.address, port)
+            except OSError as error:
+                if error.errno != errno.EADDRINUSE:
+                    raise
+        LOG.error("CHANNEL no free port in %d-%d; widen the native controls port range", first, last)
+        raise OSError(errno.EADDRINUSE, f"No free port in {first}-{last} for a session channel")
+
     async def make_channel(self, factory):
-        server = await asyncio.get_running_loop().create_server(factory, self.address, 0)
+        server = await self.bind_channel(factory)
         if self.closed:
             server.close()
             await server.wait_closed()
@@ -847,7 +877,7 @@ async def run(args):
     owners = set()
 
     def factory():
-        owner = Receiver(address, args.name, args.model, uid, seed, playback, pin)
+        owner = Receiver(address, args.name, args.model, uid, seed, playback, pin, channel_ports=args.channel_ports)
         owners.add(owner)
         owner.on_close = lambda: owners.discard(owner)
         return ControlProtocol(owner)
@@ -898,6 +928,8 @@ if __name__ == "__main__":
     parser.add_argument("--name", help="Display name (defaults to selected Yoto name in bridge mode)")
     parser.add_argument("--bridge-url", help="Opt-in Homebridge MediaRemote bridge URL")
     parser.add_argument("--device-id", help="Yoto device ID selected from the bridge")
+    parser.add_argument("--channel-ports", type=port_range, metavar="FIRST-LAST",
+        help="Port range for per-session event/data channels (default: any free port)")
     parser.add_argument("--open-access", action="store_true",
         help=f"Let any client on the network pair with AirPlay's public transient PIN. Without it, {PIN_ENV} must hold a PIN.")
     parser.add_argument("--model", default="YotoPrototype", help="Experimental identity: YotoPrototype, AudioAccessory5,1 or AppleTV6,2")
