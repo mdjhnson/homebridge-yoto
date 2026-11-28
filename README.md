@@ -37,17 +37,21 @@ available; navigation stops at the card boundaries. Volume follows the player
 and respects its active maximum volume limit.
 Homebridge starts and stops the receivers automatically and reuses its existing
 Yoto account. No separate receiver container, bridge token, or device-ID lookup is
-needed. This research branch must be installed in Homebridge; it is not an npm
-release yet.
+needed.
 
-The Homebridge environment needs Python with `venv`/`pip`. The plugin
+The Homebridge environment needs Python 3 with `venv` and `pip`. The plugin
 installs the pinned receiver dependencies into its persistent storage on the first
-startup; allow a few minutes. Python must be installed **inside** the Homebridge
-container when using Docker. For Debian/Ubuntu containers the packages are
-`python3`, `python3-venv`, and `python3-pip`; keep these in your container
-image or persistent startup setup so recreating it does not remove them. The
-plugin does not install system packages or require Homebridge to run as root.
-Linux and macOS are supported; Windows is not supported for this feature.
+startup; allow a few minutes. The plugin does not install system packages or
+require Homebridge to run as root. Linux and macOS are supported; Windows is not
+supported for this feature.
+
+- **Docker:** Python must be installed **inside** the Homebridge container, and the
+  container must use host networking. Add this to the startup script in the Homebridge
+  storage folder (in the Homebridge UI: **⋮ → Startup Script**) so recreating the
+  container doesn't remove it:
+  `apt-get update && apt-get install -y python3 python3-venv python3-pip`
+- **Debian, Ubuntu, Raspberry Pi OS:** install `python3-venv` and `python3-pip`.
+- **macOS:** the Python 3 from python.org or Homebrew works.
 
 **Pairing PIN.** The first start generates a random 8-digit **Pairing PIN** and saves
 it under **Advanced → Native iPhone Controls** (the log says when it does, but never
@@ -62,9 +66,12 @@ receiver to be a HomeKit-certified AirPlay speaker, which this is not.
 Under **Advanced → Native iPhone Controls**, optionally select player names (empty
 means all), override the Python executable, or choose the first receiver port
 (default 7100, followed by the next free port per player; avoid 7000, which macOS
-AirPlay Receiver uses). Players with the same name get a short device ID suffix. The LAN address is detected when
-there is one external IPv4 interface. On Unraid, enter the Homebridge host's LAN IP
-if there are multiple interfaces. Homebridge Docker must use **host networking**
+AirPlay Receiver uses). Players with the same name get a short device ID suffix. The LAN address is detected
+automatically: container, VM and VPN interfaces (such as `docker0`, `br-…` and
+`tailscale0`) are ignored, and when the host is on the network more than once (for
+example Ethernet and Wi-Fi) the interface with the default route is used. If it still
+can't tell, the log lists the addresses it found; enter the host's address on your
+home network under **LAN address**. Homebridge Docker must use **host networking**
 for multicast discovery and the dynamically allocated event/data ports.
 
 For JSON configuration, add these fields to the existing Yoto platform entry:
