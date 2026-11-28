@@ -30,8 +30,19 @@ This is a maintained fork of [bcomnes/homebridge-yoto](https://github.com/bcomne
 
 Enable **Native iPhone Now Playing** in the plugin's **Accessory Services** settings
 and restart Homebridge. Stop the standalone prototype/container first so its port
-and name do not conflict. Each Yoto appears under **Control Other Speakers & TVs**,
-with live card/track metadata, available cover artwork, volume, and play/pause/stop controls. Previous/next
+and name do not conflict.
+
+To control a Yoto from your iPhone:
+
+1. Open **Control Center** and tap the AirPlay icon on the music tile.
+2. Tap **All Speakers & TVs** at the bottom (called **Control Other Speakers & TVs**
+   on older iOS versions), then pick the Yoto.
+3. The first time, enter the **Pairing PIN** from the plugin settings (see below).
+
+Don't pick the Yoto in the main AirPlay list: that tries to play your iPhone's audio
+on it, which isn't supported, and fails with "Unable to connect".
+
+The music tile and lock screen then show the Yoto's live card/track metadata, available cover artwork, volume, and play/pause/stop controls. Previous/next
 select adjacent tracks when ordered card details from `/card/{cardId}` and the current track keys are
 available; navigation stops at the card boundaries. Volume follows the player
 and respects its active maximum volume limit.
@@ -100,7 +111,8 @@ settings. The separate `nativeControls` object is optional: leave out `pin` to h
 generated, and add `"allowAnyoneOnNetwork": true` only if you want no PIN at all. Turn the switch off and restart to remove the receivers.
 
 This remains experimental. Play/pause, volume, artwork, and previous/next have
-been tested with physical Yoto players and an iPhone. Integration tests cover
+been tested with physical Yoto players and an iPhone; PIN pairing has been confirmed
+on iOS 27.2. Integration tests cover
 pairing, encrypted transport, command forwarding, offline handling, and receiver
 lifecycle with fake devices. Progress uses timestamped positions and smooths minor
 reporting jitter; long-session and card removal/reinsertion behaviour still need
