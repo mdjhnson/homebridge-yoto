@@ -4,16 +4,25 @@ on:
   workflow_dispatch:
     inputs:
       newversion:
-        description: 'npm version {major,minor,patch}'
+        description: 'npm version: patch/minor/major release from master, or a beta (pre*) from any branch'
         required: true
         type: choice
         options:
           - patch
           - minor
           - major
+          # Betas publish under the npm "beta" tag, so `latest` (what Homebridge
+          # offers as an update) is unchanged. preminor: 1.0.1 -> 1.1.0-beta.0;
+          # prerelease: 1.1.0-beta.0 -> 1.1.0-beta.1.
+          - preminor
+          - prepatch
+          - premajor
+          - prerelease
 
 env:
   FORCE_COLOR: 1
+  NEW_VERSION: ${{ inputs.newversion }}
+  IS_BETA: ${{ startsWith(inputs.newversion, 'pre') }}
 
 concurrency: # prevent concurrent releases
   group: npm-bump
@@ -26,6 +35,11 @@ jobs:
       contents: write # push the version commit/tag and create the GitHub release
       id-token: write # npm trusted publishing (OIDC), no NPM_TOKEN needed
     steps:
+    - name: Only betas may be released from a branch other than master
+      if: ${{ !startsWith(inputs.newversion, 'pre') && github.ref != 'refs/heads/master' }}
+      run: |
+        echo "::error::$NEW_VERSION releases must run on master; use a pre* option for a beta"
+        exit 1
     - uses: actions/checkout@v6
       with:
         # fetch full history so things like auto-changelog work properly
@@ -42,13 +56,23 @@ jobs:
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
     - name: npm version
-      run: npm version ${{ inputs.newversion }} -m "%s"
+      run: |
+        if [ "$IS_BETA" = true ]; then
+          npm version "$NEW_VERSION" --preid=beta -m "%s"
+        else
+          npm version "$NEW_VERSION" -m "%s"
+        fi
     # Publish before pushing, so a failed publish doesn't leave a tag for a
     # version that was never released. Trusted publishing can only be set up on
     # a package that already exists on npm, so the very first release must be
     # published by hand (npm publish) before this workflow can publish.
     - name: npm publish
-      run: npm publish
+      run: |
+        if [ "$IS_BETA" = true ]; then
+          npm publish --tag beta
+        else
+          npm publish
+        fi
     - name: Push version commit and tag
       run: git push --follow-tags
     - name: Create GitHub release
@@ -59,9 +83,11 @@ jobs:
       # when the section is empty.
       run: |
         TAG="v$(node -p "require('./package.json').version")"
+        FLAGS=()
+        if [ "$IS_BETA" = true ]; then FLAGS+=(--prerelease); fi
         awk -v tag="$TAG" '/^## /{ if (found) exit; if (index($0, "[" tag "]") || $0 ~ ("^## " tag "( |$)")) { found=1; next } } found' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
         if grep -q '[^[:space:]]' "$RUNNER_TEMP/release-notes.md"; then
-          gh release create "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+          gh release create "$TAG" --title "$TAG" "${FLAGS[@]}" --notes-file "$RUNNER_TEMP/release-notes.md"
         else
-          gh release create "$TAG" --title "$TAG" --generate-notes
+          gh release create "$TAG" --title "$TAG" "${FLAGS[@]}" --generate-notes
         fi

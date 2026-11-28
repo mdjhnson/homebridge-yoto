@@ -174,6 +174,72 @@
             "type": "boolean",
             "default": true,
             "description": "Expose day/night max volume controls."
+          },
+          "nativeControls": {
+            "title": "Native iPhone Now Playing (Experimental)",
+            "type": "boolean",
+            "default": false,
+            "description": "Show each Yoto in Control Other Speakers & TVs with card artwork, playback navigation and volume controls. Homebridge manages the receiver. Requires Python 3 with venv and pip; dependencies install automatically on first startup. iPhones must enter the pairing PIN from the Native iPhone Controls settings under Advanced."
+          }
+        }
+      },
+      "nativeControls": {
+        "title": "Native iPhone Controls",
+        "type": "object",
+        "properties": {
+          "pin": {
+            "title": "Pairing PIN",
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 32,
+            "pattern": "^[\\x21-\\x7E]+$",
+            "description": "Entered on an iPhone the first time it controls a Yoto. Leave blank to have a random 8-digit PIN generated and saved here on the next start. 4 to 32 characters, no spaces."
+          },
+          "allowAnyoneOnNetwork": {
+            "title": "Allow anyone on my network (no PIN)",
+            "type": "boolean",
+            "default": false,
+            "description": "Turn off the PIN. Any phone or device on your network, including guests, can then play, pause, skip and change the volume of the selected Yotos."
+          },
+          "address": {
+            "title": "LAN address",
+            "type": "string",
+            "description": "Leave blank to detect a single LAN IPv4 address. On Unraid with multiple interfaces, enter the Homebridge host LAN address. Homebridge must use host networking."
+          },
+          "port": {
+            "title": "First port",
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535,
+            "default": 7100,
+            "description": "Start of the TCP port range native controls use: one port per Yoto, plus two per connected iPhone. If this host runs a firewall, allow First port to Last port from your home network. Avoid 7000, which macOS AirPlay Receiver uses.",
+            "x-schema-form": {
+              "type": "number"
+            }
+          },
+          "lastPort": {
+            "title": "Last port",
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535,
+            "description": "End of the port range. Leave blank for First port + 99.",
+            "x-schema-form": {
+              "type": "number"
+            }
+          },
+          "pythonPath": {
+            "title": "Python executable",
+            "type": "string",
+            "default": "python3",
+            "description": "Python executable or absolute path. A dedicated runtime is created automatically in Homebridge storage."
+          },
+          "devices": {
+            "title": "Players",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional player names or device IDs. Leave empty to expose all Yotos."
           }
         }
       }
@@ -208,6 +274,7 @@
           "helpvalue": "<p>The older <strong>External Smart Speaker</strong> option has moved to the <em>Advanced</em> section below.</p>"
         },
         "services.playbackControls",
+        "services.nativeControls",
         "services.television",
         {
           "key": "services.televisionLibrary",
@@ -255,6 +322,46 @@
       "items": [
         "name",
         "httpPollIntervalMs",
+        {
+          "type": "section",
+          "title": "Native iPhone Controls",
+          "condition": {
+            "functionBody": "return model.services && model.services.nativeControls === true"
+          },
+          "items": [
+            "nativeControls.pin",
+            "nativeControls.allowAnyoneOnNetwork",
+            "nativeControls.address",
+            {
+              "key": "nativeControls.port",
+              "type": "number"
+            },
+            {
+              "key": "nativeControls.lastPort",
+              "type": "number"
+            },
+            "nativeControls.pythonPath",
+            {
+              "type": "help",
+              "helpvalue": "<p class=\"mb-1\">Players</p><p class=\"text-muted small\">Optional player names or device IDs. Leave empty to expose all Yotos.</p>"
+            },
+            {
+              "key": "nativeControls.devices",
+              "type": "array",
+              "notitle": true,
+              "description": "",
+              "startEmpty": true,
+              "buttonText": "Add player",
+              "items": [
+                {
+                  "key": "nativeControls.devices[]",
+                  "notitle": true,
+                  "placeholder": "Player name or device ID"
+                }
+              ]
+            }
+          ]
+        },
         {
           "type": "help",
           "helpvalue": "<p><strong>Legacy: External Smart Speaker.</strong> Older playback option kept for existing setups. It only works in scenes and automations. The Home app shows \"Controls not available\" for it and can't show what's playing, because iOS only offers those for AirPlay speakers. For more features, turn on the <strong>TV Playback Accessory</strong> under <em>Accessory Services</em> instead. It supports the iPhone remote, volume buttons, and inputs for card controls and shortcuts. If you switch, remove the old Smart Speaker from the Home app by hand.</p>"

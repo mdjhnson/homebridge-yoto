@@ -26,6 +26,103 @@ Homebridge plugin that exposes Yoto players to HomeKit: playback and volume, car
 
 This is a maintained fork of [bcomnes/homebridge-yoto](https://github.com/bcomnes/homebridge-yoto).
 
+## Native iPhone Now Playing (experimental)
+
+Enable **Native iPhone Now Playing** in the plugin's **Accessory Services** settings
+and restart Homebridge. Stop the standalone prototype/container first so its port
+and name do not conflict.
+
+To control a Yoto from your iPhone:
+
+1. Open **Control Center** and tap the AirPlay icon on the music tile.
+2. Tap **All Speakers & TVs** at the bottom (called **Control Other Speakers & TVs**
+   on older iOS versions), then pick the Yoto.
+3. The first time, enter the **Pairing PIN** from the plugin settings (see below).
+
+Don't pick the Yoto in the main AirPlay list: that tries to play your iPhone's audio
+on it, which isn't supported, and fails with "Unable to connect".
+
+The music tile and lock screen then show the Yoto's live card/track metadata, available cover artwork, volume, and play/pause/stop controls. Previous/next
+select adjacent tracks when ordered card details from `/card/{cardId}` and the current track keys are
+available; navigation stops at the card boundaries. Volume follows the player
+and respects its active maximum volume limit.
+Homebridge starts and stops the receivers automatically and reuses its existing
+Yoto account. No separate receiver container, bridge token, or device-ID lookup is
+needed.
+
+The Homebridge environment needs Python 3 with `venv` and `pip`. The plugin
+installs the pinned receiver dependencies into its persistent storage on the first
+startup; allow a few minutes. The plugin does not install system packages or
+require Homebridge to run as root. Linux and macOS are supported; Windows is not
+supported for this feature.
+
+- **Docker:** Python must be installed **inside** the Homebridge container, and the
+  container must use host networking. Add this to the startup script in the Homebridge
+  storage folder (in the Homebridge UI: **⋮ → Startup Script**) so recreating the
+  container doesn't remove it:
+  `apt-get update && apt-get install -y python3 python3-venv python3-pip`
+- **Debian, Ubuntu, Raspberry Pi OS:** install `python3-venv` and `python3-pip`.
+- **macOS:** the Python 3 from python.org or Homebrew works.
+
+**Pairing PIN.** The first start generates a random 8-digit **Pairing PIN** and saves
+it under **Advanced → Native iPhone Controls** (the log says when it does, but never
+prints the PIN). Your iPhone asks for it the first time it controls a Yoto; change it
+there at any time (4–32 characters, no spaces) and restart. Repeated wrong guesses
+are slowed down. If you want any phone on your network, guests included, to control
+the Yotos without a PIN, turn on **Allow anyone on my network (no PIN)**.
+
+Restricting control to people in your Apple Home isn't possible: that needs the
+receiver to be a HomeKit-certified AirPlay speaker, which this is not.
+
+Under **Advanced → Native iPhone Controls**, optionally select player names (empty
+means all), override the Python executable, or change the port range. Players with
+the same name get a short device ID suffix.
+
+**Ports and firewalls.** Native controls use TCP ports **First port** to **Last port**
+(default 7100–7199): one per player, plus two for each connected iPhone. The startup
+log shows the range. If the Homebridge host runs a firewall, allow that range from
+your home network, for example `sudo ufw allow 7100:7199/tcp`; if you already allow
+a range for Homebridge, you can point First and Last port at an unused part of it
+instead. Avoid 7000, which macOS AirPlay Receiver uses. A blocked range shows up on
+the iPhone as "Unable to connect" without a PIN prompt. The LAN address is detected
+automatically: container, VM and VPN interfaces (such as `docker0`, `br-…` and
+`tailscale0`) are ignored, and when the host is on the network more than once (for
+example Ethernet and Wi-Fi) the interface with the default route is used. If it still
+can't tell, the log lists the addresses it found; enter the host's address on your
+home network under **LAN address**. Homebridge Docker must use **host networking**
+for multicast discovery and the dynamically allocated event/data ports.
+
+For JSON configuration, add these fields to the existing Yoto platform entry:
+
+```json
+"services": {
+  "nativeControls": true
+},
+"nativeControls": {
+  "pin": "24681357",
+  "address": "192.0.2.10",
+  "port": 7100,
+  "lastPort": 7199
+}
+```
+
+Merge `nativeControls` into your existing `services` object; keep the other service
+settings. The separate `nativeControls` object is optional: leave out `pin` to have one
+generated, and add `"allowAnyoneOnNetwork": true` only if you want no PIN at all. Turn the switch off and restart to remove the receivers.
+
+This remains experimental. Play/pause, volume, artwork, and previous/next have
+been tested with physical Yoto players and an iPhone; PIN pairing has been confirmed
+on iOS 27.2. Integration tests cover
+pairing, encrypted transport, command forwarding, offline handling, and receiver
+lifecycle with fake devices. Progress uses timestamped positions and smooths minor
+reporting jitter; long-session and card removal/reinsertion behaviour still need
+broader testing. Seeking, audio reception, and persistent pairing are not implemented.
+Previous/next are disabled when card navigation metadata is unavailable or no
+adjacent track exists. Interactive cards do not expose linear navigation.
+Anyone who knows the pairing PIN (or anyone on your network, if **Allow anyone on my
+network** is on) can play, pause, skip and change the volume of the selected Yotos, up
+to their maximum volume limit. Do not expose these ports to the internet.
+
 ## Install
 
 Search for `@mdjhnson/homebridge-yoto` in the Homebridge UI **Plugins** tab, or run:
@@ -125,7 +222,12 @@ The TV accessory, and the legacy Smart Speaker below, are external accessories. 
 
 ## Privacy
 
-The plugin only connects to Yoto's API and MQTT service, using your own sign-in. It has no analytics or tracking. The only file it changes is Homebridge's `config.json`, to save refreshed sign-in tokens. It writes a temporary copy next to `config.json` first and renames it into place, so an interrupted save can't corrupt the file.
+The plugin connects to Yoto's API and MQTT service using your own sign-in. It has
+no analytics or tracking. Optional native controls also download cover artwork
+from metadata URLs and advertise receiver services on your LAN. First-run receiver
+setup downloads pinned Python dependencies and keeps its runtime in Homebridge's
+persistent storage. The plugin updates Homebridge's `config.json` to save refreshed
+sign-in tokens. It writes a temporary copy next to `config.json` first and renames it into place, so an interrupted save can't corrupt the file.
 
 ## Development
 

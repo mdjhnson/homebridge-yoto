@@ -109,6 +109,7 @@ node --test lib/foo.test.js
 - **Publishing:** GitHub Actions → **npm bump** (`.github/workflows/release.yml`).
   - It uses npm trusted publishing (OIDC, `id-token: write`), with no npm token.
   - It runs `npm version`, pushes the tag, runs `npm publish`, and creates a GitHub release.
+  - **Betas:** the `pre*` options (`preminor` for a first beta, `prerelease` for the next) publish `x.y.z-beta.N` under the npm `beta` tag and mark the GitHub release as a pre-release, so `latest` and Homebridge's update prompt don't change. They can run from any branch, so a PR can be tested before merging: `gh workflow run release.yml --repo mdjhnson/homebridge-yoto --ref <branch> -f newversion=preminor`. The version commit is pushed to that branch. Users install a beta from Homebridge UI → Plugins → ⋮ → Install Alternate Version. Patch, minor and major releases refuse to run anywhere but `master`.
 - The default branch is `master`.
 - `PLUGIN_NAME` in `lib/settings.js` must equal the `package.json` `name`. `PLATFORM_NAME` stays `Yoto` for config compatibility.
 
